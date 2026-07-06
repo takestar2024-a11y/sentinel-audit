@@ -13,6 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 import scanner
+import report as report_gen
 
 # 本番（Render等）では PORT 環境変数が渡される。その場合は 0.0.0.0 で待受。
 # ローカル単体起動時は 127.0.0.1（自PC内のみ）。
@@ -99,6 +100,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/scan":
             return self._handle_scan(parse_qs(parsed.query))
 
+        if path == "/api/report":
+            return self._handle_report(parse_qs(parsed.query))
+
         if path == "/api/health":
             return self._json(200, {"status": "ok"})
 
@@ -119,25 +123,34 @@ class Handler(BaseHTTPRequestHandler):
         except FileNotFoundError:
             self._json(404, {"error": "file not found"})
 
-    def _handle_scan(self, qs):
+    def _guard_domain(self, qs):
+        """レート制限・形式検証・SSRFガードを通す。
+        OKなら domain を、NGなら None を返し（その場でエラー応答済み）。"""
         ip = self._client_ip()
         if not _rate_ok(ip):
-            return self._json(429, {"error": "リクエストが多すぎます。しばらくお待ちください。"})
-
+            self._json(429, {"error": "リクエストが多すぎます。しばらくお待ちください。"})
+            return None
         raw = (qs.get("domain") or [""])[0]
         domain = clean_domain(raw)
         if not domain or not DOMAIN_RE.match(domain):
-            return self._json(400, {"error": "ドメインの形式が正しくありません（例：example.co.jp）"})
-
-        print(f"  → scanning: {domain}  (from {ip})")
+            self._json(400, {"error": "ドメインの形式が正しくありません（例：example.co.jp）"})
+            return None
         # SSRF/踏み台防止：内部・プライベート宛先は診断しない
         ok, reason = scanner.is_public_domain(domain)
         if not ok:
             if reason == "notfound":
-                return self._json(404, {"error": "このドメインは実在しないか、DNSに登録されていないようです。"})
-            print(f"  ! blocked non-public target: {domain}")
-            return self._json(400, {"error": "このドメインは内部・プライベート宛先を指すため診断できません。公開ドメインを指定してください。"})
+                self._json(404, {"error": "このドメインは実在しないか、DNSに登録されていないようです。"})
+            else:
+                print(f"  ! blocked non-public target: {domain}")
+                self._json(400, {"error": "このドメインは内部・プライベート宛先を指すため診断できません。公開ドメインを指定してください。"})
+            return None
+        return domain
 
+    def _handle_scan(self, qs):
+        domain = self._guard_domain(qs)
+        if not domain:
+            return
+        print(f"  → scanning: {domain}  (from {self._client_ip()})")
         t0 = time.time()
         try:
             report = scanner.full_scan(domain)
@@ -146,6 +159,31 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             print(f"  ! scan error: {type(e).__name__}: {e}")
             return self._json(500, {"error": f"診断中にエラーが発生しました（{type(e).__name__}）"})
+
+    def _handle_report(self, qs):
+        domain = self._guard_domain(qs)
+        if not domain:
+            return
+        print(f"  → report(quick): {domain}  (from {self._client_ip()})")
+        try:
+            rep = scanner.full_scan(domain)
+            data = report_gen.generate_bytes(rep, mode="quick")
+        except Exception as e:
+            print(f"  ! report error: {type(e).__name__}: {e}")
+            return self._json(500, {"error": f"報告書の生成に失敗しました（{type(e).__name__}）"})
+        # ASCIIファイル名（日本語はブラウザ互換のため避ける）
+        safe = re.sub(r"[^A-Za-z0-9.\-]", "_", domain)
+        fname = f"SENTINEL-AUDIT_{safe}_quickscan.docx"
+        self.send_response(200)
+        self.send_header("Content-Type",
+                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        self.send_header("Content-Disposition", f'attachment; filename="{fname}"')
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        for k, v in SECURITY_HEADERS.items():
+            self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(data)
 
 
 def main():

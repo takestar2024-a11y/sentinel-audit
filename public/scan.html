@@ -184,7 +184,8 @@ footer{border-top:1px solid var(--line);padding:34px 0;text-align:center;color:v
     <h2>全項目の詳細診断と、<br>改善アクションリストを受け取る。</h2>
     <p>本診断では40項目以上をフルチェックし、優先順位付きの改善手順とWord報告書を納品します。この結果をそのまま添えてご相談ください。</p>
     <div class="cta-actions">
-      <a id="ctaMail" class="btn btn-primary" href="#">本診断を無償で申し込む →</a>
+      <a id="ctaReport" class="btn btn-primary" href="#">📄 診断結果をWordで保存</a>
+      <a id="ctaMail" class="btn btn-ghost" href="#">本診断を無償で申し込む →</a>
       <button class="btn btn-ghost" id="againBtn">別のドメインを診断する</button>
     </div>
   </div>
@@ -326,6 +327,7 @@ function showResult(rep){
     '検出：クリティカル '+rep.counts.c+'件 / 要改善 '+rep.counts.w+'件 / 良好 '+rep.counts.s+'件%0D%0A%0D%0A'+
     '会社名：%0D%0Aご担当者名：%0D%0Aご連絡先：';
   el('ctaMail').href='mailto:'+CONTACT_EMAIL+'?subject='+encodeURIComponent('【本診断のお申し込み】'+rep.domain)+'&body='+body;
+  el('ctaReport').href='/api/report?domain='+encodeURIComponent(rep.domain);
 
   drawGauge(rep.overall);
 }
