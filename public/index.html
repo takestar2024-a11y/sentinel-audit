@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SENTINEL AUDIT ｜ AI Webセキュリティ診断</title>
+<style>
+:root{
+  --bg:#04070c;
+  --bg2:#080d16;
+  --ink:#eef3fa;
+  --muted:#8b95ab;
+  --line:rgba(255,255,255,.10);
+  --accent:#22d3ee;         /* scan cyan */
+  --accent2:#8b5cf6;        /* violet */
+  --crit:#ff4d4d;
+  --warn:#ffb020;
+  --safe:#2dd4a7;
+  --maxw:1160px;
+  --font:"Helvetica Neue",-apple-system,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  --mono:"SFMono-Regular",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--font);
+  line-height:1.7;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px}
+
+/* ---------- Scan grid background ---------- */
+#grid{position:fixed;inset:0;z-index:0;pointer-events:none}
+.bg-glow{position:fixed;z-index:0;border-radius:50%;filter:blur(120px);opacity:.5;pointer-events:none}
+.g1{width:620px;height:620px;background:radial-gradient(circle,#22d3ee44,transparent 65%);top:-220px;right:-160px}
+.g2{width:680px;height:680px;background:radial-gradient(circle,#8b5cf633,transparent 65%);top:1500px;left:-260px}
+.g3{width:600px;height:600px;background:radial-gradient(circle,#2dd4a733,transparent 65%);bottom:600px;right:-200px}
+
+main{position:relative;z-index:2}
+
+/* ---------- Nav ---------- */
+nav{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;justify-content:space-between;align-items:center;
+  padding:16px 28px;backdrop-filter:blur(14px);background:rgba(4,7,12,.55);border-bottom:1px solid var(--line)}
+.brand{font-weight:700;letter-spacing:.14em;font-size:13px;display:flex;align-items:center;gap:10px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 14px var(--accent)}
+.nav-cta{font-size:12px;letter-spacing:.1em;border:1px solid var(--line);padding:9px 16px;border-radius:40px;color:var(--ink);text-decoration:none;transition:.25s}
+.nav-cta:hover{background:#fff;color:#000;border-color:#fff}
+
+/* ---------- Hero ---------- */
+.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:140px 28px 80px;position:relative}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.32em;color:var(--accent);text-transform:uppercase;margin-bottom:26px;
+  border:1px solid var(--line);border-radius:40px;padding:8px 18px;background:rgba(34,211,238,.06)}
+.hero h1{font-size:clamp(36px,6.6vw,80px);line-height:1.08;font-weight:700;letter-spacing:-.02em;max-width:16ch;margin-bottom:26px}
+.hero h1 .grad{background:linear-gradient(120deg,#fff 10%,#22d3ee 55%,#8b5cf6 95%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p.lead{font-size:clamp(16px,2vw,21px);color:var(--muted);max-width:60ch;margin-bottom:42px}
+.hero-cta{display:flex;gap:16px;flex-wrap:wrap;justify-content:center}
+.btn{font-size:15px;letter-spacing:.02em;padding:15px 30px;border-radius:46px;text-decoration:none;font-weight:600;transition:.25s;display:inline-flex;align-items:center;gap:9px}
+.btn-primary{background:#fff;color:#000}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 16px 40px rgba(255,255,255,.18)}
+.btn-ghost{border:1px solid var(--line);color:var(--ink)}
+.btn-ghost:hover{border-color:#fff;background:rgba(255,255,255,.05)}
+.scroll-hint{position:absolute;bottom:30px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--muted);animation:bob 2.2s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translate(-50%,0);opacity:.5}50%{transform:translate(-50%,8px);opacity:1}}
+
+/* ---------- Section base ---------- */
+section{padding:110px 0;position:relative}
+.tag{font-family:var(--mono);font-size:12px;letter-spacing:.28em;color:var(--accent);text-transform:uppercase;margin-bottom:18px}
+.sec-title{font-size:clamp(28px,4.4vw,52px);font-weight:700;letter-spacing:-.02em;line-height:1.1;margin-bottom:20px;max-width:22ch}
+.sec-sub{color:var(--muted);font-size:clamp(15px,1.7vw,18px);max-width:64ch;margin-bottom:54px}
+
+/* ---------- Reveal ---------- */
+.reveal{opacity:0;transform:translateY(34px);transition:opacity .9s cubic-bezier(.2,.7,.2,1),transform .9s cubic-bezier(.2,.7,.2,1)}
+.reveal.in{opacity:1;transform:none}
+
+/* ---------- Perspective compare ---------- */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.card{border:1px solid var(--line);border-radius:20px;padding:34px;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.01));position:relative;overflow:hidden}
+.card.attacker{border-color:rgba(255,77,77,.35);box-shadow:0 0 0 1px rgba(255,77,77,.12),0 30px 60px rgba(255,77,77,.06)}
+.card h3{font-size:13px;letter-spacing:.2em;font-family:var(--mono);text-transform:uppercase;margin-bottom:6px;color:var(--muted)}
+.card .big{font-size:30px;font-weight:700;margin-bottom:24px}
+.card.attacker .big{color:#ff7676}
+.crow{display:flex;justify-content:space-between;gap:14px;padding:13px 0;border-top:1px solid var(--line);font-size:14px}
+.crow span:first-child{color:var(--muted);flex-shrink:0}
+.crow span:last-child{text-align:right;font-weight:500}
+
+/* ---------- Stat band ---------- */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--line);border-radius:20px;overflow:hidden}
+.stat{padding:38px 26px;border-right:1px solid var(--line);background:rgba(255,255,255,.015)}
+.stat:last-child{border-right:none}
+.stat .num{font-size:clamp(30px,4vw,46px);font-weight:700;letter-spacing:-.02em;background:linear-gradient(120deg,#fff,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat .lab{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.5}
+
+/* ---------- Pillars ---------- */
+.pillars{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.pillar{border:1px solid var(--line);border-radius:20px;padding:30px 26px;background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.005));transition:.3s}
+.pillar:hover{transform:translateY(-6px);border-color:rgba(34,211,238,.45)}
+.pnum{font-family:var(--mono);font-size:13px;color:var(--accent);letter-spacing:.2em}
+.pillar h3{font-size:19px;margin:14px 0 12px;font-weight:700}
+.pillar p{color:var(--muted);font-size:14px}
+.picon{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  background:rgba(34,211,238,.1);border:1px solid rgba(34,211,238,.3);margin-bottom:20px}
+.picon svg{width:24px;height:24px;stroke:var(--accent);fill:none;stroke-width:1.6}
+
+/* ---------- Deliverables / gauge ---------- */
+.diag{display:grid;grid-template-columns:1fr 1fr;gap:54px;align-items:center}
+.risk-list{display:flex;flex-direction:column;gap:14px}
+.risk{display:flex;align-items:center;gap:16px}
+.risk .pip{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+.pip.c{background:var(--crit);box-shadow:0 0 12px var(--crit)}
+.pip.w{background:var(--warn);box-shadow:0 0 12px var(--warn)}
+.pip.s{background:var(--safe);box-shadow:0 0 12px var(--safe)}
+.risk .rl{flex:1}
+.risk .rl b{font-size:15px}
+.risk .rl small{display:block;color:var(--muted);font-size:13px}
+.risk .rv{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.deliver{margin-top:34px;border-top:1px solid var(--line);padding-top:26px}
+.deliver h4{font-family:var(--mono);font-size:12px;letter-spacing:.2em;color:var(--accent);margin-bottom:14px;text-transform:uppercase}
+.deliver li{list-style:none;padding:8px 0 8px 26px;position:relative;font-size:15px;color:var(--ink)}
+.deliver li::before{content:"✓";position:absolute;left:0;color:var(--safe);font-weight:700}
+.deliver li small{color:var(--muted)}
+.chart-box{border:1px solid var(--line);border-radius:20px;padding:30px;background:rgba(255,255,255,.015);text-align:center}
+.chart-box h4{font-size:14px;font-family:var(--mono);letter-spacing:.1em;color:var(--muted);margin-bottom:6px;text-align:left}
+.chart-box .cap{font-size:13px;color:var(--muted);margin-top:14px}
+canvas.chart{width:100%;max-width:340px;height:auto}
+
+/* ---------- Flow process ---------- */
+.loop{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.step{border:1px solid var(--line);border-radius:18px;padding:28px 22px;background:rgba(255,255,255,.02);position:relative}
+.step .sn{font-family:var(--mono);color:var(--accent);font-size:13px;letter-spacing:.2em;margin-bottom:12px}
+.step h4{font-size:18px;margin-bottom:8px}
+.step p{color:var(--muted);font-size:14px}
+.step::after{content:"→";position:absolute;right:-13px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:18px}
+.loop .step:last-child::after{content:""}
+
+/* ---------- Plans timeline ---------- */
+.timeline{position:relative;padding-left:30px}
+.timeline::before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:2px;background:linear-gradient(180deg,var(--accent),transparent)}
+.tnode{position:relative;padding:0 0 38px 28px}
+.tnode::before{content:"";position:absolute;left:-30px;top:6px;width:12px;height:12px;border-radius:50%;background:var(--bg);border:2px solid var(--accent);box-shadow:0 0 12px var(--accent)}
+.tnode h4{font-size:19px;margin-bottom:4px}
+.tnode .ph{font-family:var(--mono);font-size:12px;letter-spacing:.2em;color:var(--accent)}
+.tnode p{color:var(--muted);font-size:15px;margin-top:6px}
+
+/* ---------- CTA ---------- */
+.cta{text-align:center;border:1px solid var(--line);border-radius:28px;padding:70px 40px;
+  background:radial-gradient(circle at 50% 0%,rgba(34,211,238,.14),transparent 60%),linear-gradient(180deg,rgba(255,255,255,.03),transparent)}
+.cta h2{font-size:clamp(28px,4.6vw,52px);font-weight:700;letter-spacing:-.02em;margin-bottom:18px;max-width:22ch;margin-inline:auto}
+.cta p{color:var(--muted);max-width:54ch;margin:0 auto 36px;font-size:17px}
+.cta .free{font-family:var(--mono);font-size:13px;letter-spacing:.2em;color:var(--safe);margin-bottom:30px;text-transform:uppercase}
+
+footer{border-top:1px solid var(--line);padding:40px 0;text-align:center;color:var(--muted);font-size:13px}
+footer .disc{max-width:70ch;margin:14px auto 0;font-size:12px;opacity:.7;line-height:1.6}
+
+@media(max-width:860px){
+  .compare,.pillars,.diag,.loop,.stats{grid-template-columns:1fr}
+  .stat{border-right:none;border-bottom:1px solid var(--line)}
+  .step::after{content:"↓";right:50%;top:auto;bottom:-13px;transform:translateX(50%)}
+  .loop .step:last-child::after{content:""}
+}
+</style>
+</head>
+<body>
+<canvas id="grid"></canvas>
+<div class="bg-glow g1"></div><div class="bg-glow g2"></div><div class="bg-glow g3"></div>
+
+<nav>
+  <div class="brand"><span class="dot"></span>SENTINEL&nbsp;AUDIT</div>
+  <a href="/scan" class="nav-cta">無償で今すぐ診断 →</a>
+</nav>
+
+<main>
+<!-- HERO -->
+<header class="hero">
+  <div class="eyebrow reveal">SENTINEL AUDIT — AI WEB SECURITY DIAGNOSTICS</div>
+  <h1 class="reveal">あなたのサイトは、<br>外から<span class="grad">丸見え</span>かもしれない。</h1>
+  <p class="lead reveal">ドメインを送るだけ。SSL証明書・セキュリティヘッダー・メールなりすまし対策・フィッシング偽装ドメインまで、攻撃者と同じ「外からの視点」でAIが徹底診断。スコア付き報告書で納品します。</p>
+  <div class="hero-cta reveal">
+    <a href="/scan" class="btn btn-primary">1ドメイン無償で今すぐ診断する →</a>
+    <a href="#service" class="btn btn-ghost">診断内容を見る</a>
+  </div>
+  <div class="scroll-hint">SCROLL</div>
+</header>
+
+<!-- THREAT -->
+<section id="threat" class="wrap">
+  <div class="tag reveal">01 — 見えていない危険</div>
+  <h2 class="sec-title reveal">「うちは狙われない」が、<br>最大の脆弱性。</h2>
+  <p class="sec-sub reveal">攻撃者は会社の規模を選びません。ツールで無差別にスキャンし、設定の甘いサイトから順に狙う。あなたのドメインの状態は、攻撃者にはすでに見えています。</p>
+  <div class="compare">
+    <div class="card reveal">
+      <h3>経営者から見えているもの</h3>
+      <div class="big">「特に問題ない」</div>
+      <div class="crow"><span>サイト</span><span>普通に表示されている</span></div>
+      <div class="crow"><span>メール</span><span>普通に届いている</span></div>
+      <div class="crow"><span>担当者</span><span>専任のセキュリティ担当は不在</span></div>
+      <div class="crow"><span>被害</span><span>今まで一度もない（気づいていない）</span></div>
+    </div>
+    <div class="card attacker reveal">
+      <h3>攻撃者から見えているもの</h3>
+      <div class="big">「入口が開いている」</div>
+      <div class="crow"><span>SSL/TLS</span><span>証明書の期限・設定は外から確認可能</span></div>
+      <div class="crow"><span>ヘッダー</span><span>防御設定の欠落は数秒で判別できる</span></div>
+      <div class="crow"><span>メール認証</span><span>SPF/DMARC未設定＝なりすまし可能</span></div>
+      <div class="crow"><span>偽ドメイン</span><span>類似ドメインは静かに登録されている</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<section class="wrap">
+  <div class="stats reveal">
+    <div class="stat"><div class="num" data-to="4" data-suf="領域">0</div><div class="lab">SSL・ヘッダー・DNS認証・フィッシングを横断診断</div></div>
+    <div class="stat"><div class="num" data-to="40" data-suf="項目+">0</div><div class="lab">外部観測できるチェックポイントを網羅</div></div>
+    <div class="stat"><div class="num" data-to="100" data-suf="点満点">0</div><div class="lab">スコアリングで現在地がひと目でわかる</div></div>
+    <div class="stat"><div class="num" data-pre="最短" data-to="3" data-suf="営業日">0</div><div class="lab">ドメイン提出から報告書納品まで</div></div>
+  </div>
+</section>
+
+<!-- SERVICE -->
+<section id="service" class="wrap">
+  <div class="tag reveal">02 — 診断する4つの領域</div>
+  <h2 class="sec-title reveal">攻撃者が最初に見る場所を、<br>先回りして塞ぐ。</h2>
+  <p class="sec-sub reveal">侵入テストのような大掛かりな調査の前に、まず「外から誰でも確認できてしまう穴」を潰すことが先決。SENTINEL AUDITはその4領域を一括で診断します。</p>
+  <div class="pillars">
+    <div class="pillar reveal">
+      <div class="picon"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+      <div class="pnum">SCAN 01</div>
+      <h3>SSL/TLS証明書</h3>
+      <p>証明書の有効期限・発行元・プロトコルの安全性を確認。期限切れは信頼の即死につながる。</p>
+    </div>
+    <div class="pillar reveal">
+      <div class="picon"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg></div>
+      <div class="pnum">SCAN 02</div>
+      <h3>セキュリティヘッダー</h3>
+      <p>クリックジャッキングやXSSを防ぐHTTP防御設定の有無を検査。欠落は数秒で攻撃者に伝わる。</p>
+    </div>
+    <div class="pillar reveal">
+      <div class="picon"><svg viewBox="0 0 24 24"><path d="M3 7l9 6 9-6"/><rect x="3" y="5" width="18" height="14" rx="2"/></svg></div>
+      <div class="pnum">SCAN 03</div>
+      <h3>DNS認証（メール）</h3>
+      <p>SPF・DKIM・DMARCの設定状況を確認。未設定なら、あなたの会社名で偽メールが送れてしまう。</p>
+    </div>
+    <div class="pillar reveal">
+      <div class="picon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M8 11h6"/></svg></div>
+      <div class="pnum">SCAN 04</div>
+      <h3>フィッシング偽装</h3>
+      <p>自社になりすました類似ドメインの登録状況を調査。顧客が偽サイトに誘導される前に検知する。</p>
+    </div>
+  </div>
+</section>
+
+<!-- DELIVERABLES -->
+<section id="report" class="wrap">
+  <div class="tag reveal">03 — 納品物</div>
+  <h2 class="sec-title reveal">「なんとなく不安」を、<br>スコアと優先順位に変える。</h2>
+  <p class="sec-sub reveal">診断結果は100点満点でスコアリングし、発見事項を深刻度で分類。専門用語のわからない経営者にもそのまま見せられる日本語報告書で納品します。</p>
+  <div class="diag">
+    <div class="reveal">
+      <div class="risk-list">
+        <div class="risk"><span class="pip c"></span><div class="rl"><b>クリティカル（最優先）</b><small>なりすまし・改ざんに直結する設定不備</small></div><span class="rv">即時対応</span></div>
+        <div class="risk"><span class="pip w"></span><div class="rl"><b>要改善（重要）</b><small>攻撃の足がかりになり得る防御の欠落</small></div><span class="rv">早期対応</span></div>
+        <div class="risk"><span class="pip s"></span><div class="rl"><b>良好（維持）</b><small>適切に設定済みの項目</small></div><span class="rv">継続監視</span></div>
+      </div>
+      <div class="deliver">
+        <h4>Deliverables</h4>
+        <ul>
+          <li>日本語診断報告書（Word）<small> — 経営層向けサマリー付き</small></li>
+          <li>スコア付き診断データ（Excel）<small> — 全チェック項目の生データ</small></li>
+          <li>改善アクションリスト<small> — 優先順位と対応方法を明記</small></li>
+        </ul>
+      </div>
+    </div>
+    <div class="chart-box reveal">
+      <h4>SECURITY SCORE — SAMPLE</h4>
+      <canvas id="gauge" class="chart" width="340" height="260"></canvas>
+      <div class="cap">診断スコアのサンプル表示。領域ごとの内訳と改善後の到達見込みも報告書に記載します。</div>
+    </div>
+  </div>
+</section>
+
+<!-- FLOW -->
+<section id="flow" class="wrap">
+  <div class="tag reveal">04 — 診断の流れ</div>
+  <h2 class="sec-title reveal">やることは、<br>ドメインを送るだけ。</h2>
+  <p class="sec-sub reveal">サーバーへの侵入やシステム変更は一切なし。外部から観測できる情報のみで診断するため、業務への影響ゼロで実施できます。</p>
+  <div class="loop">
+    <div class="step reveal"><div class="sn">01</div><h4>ドメイン提出</h4><p>診断したいドメインをメールで送るだけ。準備作業は不要。</p></div>
+    <div class="step reveal"><div class="sn">02</div><h4>AI外部スキャン</h4><p>4領域40項目以上をAIが外部から自動診断。</p></div>
+    <div class="step reveal"><div class="sn">03</div><h4>スコアリング</h4><p>発見事項を深刻度で分類し、100点満点で採点。</p></div>
+    <div class="step reveal"><div class="sn">04</div><h4>報告書納品</h4><p>Word報告書＋Excelデータを最短3営業日で納品。</p></div>
+  </div>
+</section>
+
+<!-- PLANS -->
+<section id="plans" class="wrap">
+  <div class="tag reveal">05 — 進め方</div>
+  <h2 class="sec-title reveal">まずは無償で、<br>1ドメインから。</h2>
+  <p class="sec-sub reveal">いきなり契約は不要です。まず主要ドメイン1つを無償診断し、結果を見てから先を決めてください。</p>
+  <div class="timeline">
+    <div class="tnode reveal"><div class="ph">STEP 0 — 無償クイック診断</div><h4>主要1ドメインを無償スキャン</h4><p>スコアと主要な発見事項をダイジェストで共有。現状のリスクレベルを把握できます。</p></div>
+    <div class="tnode reveal"><div class="ph">STEP 1 — 本診断</div><h4>全ドメイン・全項目の詳細診断</h4><p>保有する全ドメインを対象に40項目以上をフル診断。報告書・改善リストを納品します。</p></div>
+    <div class="tnode reveal"><div class="ph">STEP 2 — 定期モニタリング</div><h4>四半期ごとの再診断で「維持」する</h4><p>証明書期限・新規の偽装ドメイン・設定変更による劣化を定期チェック。改善の推移をスコアで追跡します。</p></div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section id="cta" class="wrap">
+  <div class="cta reveal">
+    <div class="free">✓ 1ドメイン無償・準備作業なし・業務影響ゼロ</div>
+    <h2>攻撃者に見つかる前に、<br>自分で見つける。</h2>
+    <p>この場でドメインを入力するだけ。無償クイック診断がすぐに始まります。結果を見てから、その先を決めてください。</p>
+    <div class="hero-cta" style="justify-content:center">
+      <a href="/scan" class="btn btn-primary">無償で今すぐ診断する →</a>
+      <a href="mailto:take.star2024@gmail.com?subject=【Webセキュリティ診断】本診断のご相談&body=診断希望ドメイン：%0D%0A会社名：%0D%0Aご担当者名：" class="btn btn-ghost">メールで相談する</a>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="wrap">
+  <div class="brand" style="justify-content:center"><span class="dot"></span>SENTINEL AUDIT</div>
+  <div class="disc">本診断は、外部から観測可能な公開情報のみを用いた非侵入型の診断です。サーバーへの侵入テスト（ペネトレーションテスト）は含まれません。診断結果は観測時点の状態に基づくものであり、すべての脆弱性の不存在を保証するものではありません。</div>
+</footer>
+
+<script>
+/* Scan grid + sweep */
+(function(){
+  const c=document.getElementById('grid'),x=c.getContext('2d');let w,h,t=0;
+  function rs(){w=c.width=innerWidth;h=c.height=innerHeight;}
+  function draw(){
+    x.clearRect(0,0,w,h);t+=0.004;
+    const gs=64;
+    x.strokeStyle='rgba(255,255,255,.035)';x.lineWidth=1;
+    for(let gx=0;gx<w;gx+=gs){x.beginPath();x.moveTo(gx,0);x.lineTo(gx,h);x.stroke();}
+    for(let gy=0;gy<h;gy+=gs){x.beginPath();x.moveTo(0,gy);x.lineTo(w,gy);x.stroke();}
+    /* sweep line */
+    const sy=((t*0.35)%1.3-0.15)*h;
+    const grad=x.createLinearGradient(0,sy-140,0,sy);
+    grad.addColorStop(0,'rgba(34,211,238,0)');grad.addColorStop(1,'rgba(34,211,238,.09)');
+    x.fillStyle=grad;x.fillRect(0,sy-140,w,140);
+    x.strokeStyle='rgba(34,211,238,.35)';x.lineWidth=1.2;
+    x.beginPath();x.moveTo(0,sy);x.lineTo(w,sy);x.stroke();
+    /* blips near sweep */
+    for(let i=0;i<5;i++){
+      const bx=(Math.sin(i*937.7+Math.floor(t*0.35/1.3)*13.7)*.5+.5)*w;
+      const by=sy-((i*53)%120);
+      if(by>0&&by<h){const a=Math.max(0,1-(sy-by)/120)*.7;
+        x.beginPath();x.fillStyle='rgba(34,211,238,'+a+')';x.arc(bx,by,2,0,7);x.fill();}
+    }
+    requestAnimationFrame(draw);
+  }
+  rs();draw();addEventListener('resize',rs);
+})();
+
+/* Reveal on scroll */
+const io=new IntersectionObserver((es)=>{es.forEach((e,i)=>{if(e.isIntersecting){
+  setTimeout(()=>e.target.classList.add('in'),(i%6)*70);io.unobserve(e.target);}});},{threshold:.16});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+/* Counters */
+const cio=new IntersectionObserver((es)=>{es.forEach(e=>{if(!e.isIntersecting)return;
+  const el=e.target,to=+el.dataset.to,pre=el.dataset.pre||'',suf=el.dataset.suf||'';
+  const dur=1400,t0=performance.now();
+  function tick(t){let p=Math.min(1,(t-t0)/dur);p=1-Math.pow(1-p,3);
+    el.textContent=pre+Math.floor(to*p).toLocaleString()+suf;
+    if(p<1)requestAnimationFrame(tick);else el.textContent=pre+to.toLocaleString()+suf;}
+  requestAnimationFrame(tick);cio.unobserve(el);});},{threshold:.5});
+document.querySelectorAll('.num').forEach(el=>cio.observe(el));
+
+/* Score gauge */
+(function(){
+  const cv=document.getElementById('gauge');if(!cv)return;
+  const ctx=cv.getContext('2d');const W=cv.width,H=cv.height;
+  const cx=W/2,cy=H/2+30,R=110,score=62;
+  let prog=0,started=false;
+  function seg(a0,a1,color,lw){ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.lineCap='round';
+    ctx.arc(cx,cy,R,Math.PI+a0*Math.PI,Math.PI+a1*Math.PI);ctx.stroke();}
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    seg(0,1,'rgba(255,255,255,.08)',16);
+    const p=prog*score/100;
+    const col=score<50?'#ff4d4d':score<75?'#ffb020':'#2dd4a7';
+    ctx.shadowColor=col;ctx.shadowBlur=18;
+    seg(0,p,col,16);
+    ctx.shadowBlur=0;
+    ctx.fillStyle='#eef3fa';ctx.font='bold 52px sans-serif';ctx.textAlign='center';
+    ctx.fillText(Math.round(prog*score),cx,cy-6);
+    ctx.fillStyle='#8b95ab';ctx.font='12px monospace';
+    ctx.fillText('/ 100',cx,cy+20);
+    ctx.fillText('要改善レベル（サンプル）',cx,cy+44);
+    if(prog<1){prog+=0.018;requestAnimationFrame(draw);}
+  }
+  new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting&&!started){started=true;draw();}});},{threshold:.4}).observe(cv);
+})();
+</script>
+</body>
+</html>
