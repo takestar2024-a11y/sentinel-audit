@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-SENTINEL AUDIT - Word報告書ジェネレーター
+サイトドック - Word報告書ジェネレーター
 scanner.full_scan() の結果 dict から日本語の .docx 報告書を生成する。
 
 2モード:
@@ -101,7 +101,7 @@ def build_document(report, mode="quick"):
     # ---- タイトル ----
     brand = doc.add_paragraph()
     brand.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = brand.add_run("SENTINEL AUDIT")
+    r = brand.add_run("サイトドック")
     r.bold = True; r.font.size = Pt(12); r.font.color.rgb = RGBColor(0x22, 0x9E, 0xB8)
 
     title = doc.add_paragraph()
@@ -113,6 +113,11 @@ def build_document(report, mode="quick"):
     sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
     sr = sub.add_run("本診断報告書（詳細版）" if full else "無償クイック診断版（ダイジェスト）")
     sr.font.size = Pt(10.5); sr.font.color.rgb = RGBColor(0x66, 0x66, 0x66)
+
+    credit = doc.add_paragraph()
+    credit.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    cr = credit.add_run("診断監修：ドッカー先生 🐾")
+    cr.italic = True; cr.font.size = Pt(9.5); cr.font.color.rgb = RGBColor(0x8A, 0x8A, 0x8A)
 
     doc.add_paragraph()
 

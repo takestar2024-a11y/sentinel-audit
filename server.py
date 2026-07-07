@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-SENTINEL AUDIT - 診断サーバー
+サイトドック - 診断サーバー
   GET /              → フロントエンド（public/index.html）
   GET /api/scan?domain=example.co.jp → 実測診断をJSONで返す
 """
@@ -10,7 +10,7 @@ import os
 import time
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, quote
 
 import scanner
 import report as report_gen
@@ -61,7 +61,7 @@ def clean_domain(raw):
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "SentinelAudit/1.0"
+    server_version = "SiteDoc/1.0"
 
     def log_message(self, fmt, *args):
         print("[%s] %s" % (self.log_date_time_string(), fmt % args))
@@ -110,7 +110,14 @@ class Handler(BaseHTTPRequestHandler):
         safe = os.path.normpath(path).lstrip("\\/").replace("..", "")
         candidate = os.path.join(PUBLIC_DIR, safe)
         if os.path.isfile(candidate):
-            ctype = "text/html; charset=utf-8" if candidate.endswith(".html") else "application/octet-stream"
+            if candidate.endswith(".html"):
+                ctype = "text/html; charset=utf-8"
+            elif candidate.endswith(".svg"):
+                ctype = "image/svg+xml"
+            elif candidate.endswith(".png"):
+                ctype = "image/png"
+            else:
+                ctype = "application/octet-stream"
             return self._serve_file(safe, ctype)
 
         return self._json(404, {"error": "not found"})
@@ -171,13 +178,18 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             print(f"  ! report error: {type(e).__name__}: {e}")
             return self._json(500, {"error": f"報告書の生成に失敗しました（{type(e).__name__}）"})
-        # ASCIIファイル名（日本語はブラウザ互換のため避ける）
+        # Content-Dispositionはlatin-1しか通らないため、ASCIIフォールバック名 +
+        # RFC 5987のfilename*で日本語のファイル名を渡す
         safe = re.sub(r"[^A-Za-z0-9.\-]", "_", domain)
-        fname = f"SENTINEL-AUDIT_{safe}_quickscan.docx"
+        ascii_fname = f"SiteDoc_{safe}_quickscan.docx"
+        utf8_fname = quote(f"サイトドック_{safe}_quickscan.docx")
         self.send_response(200)
         self.send_header("Content-Type",
                          "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-        self.send_header("Content-Disposition", f'attachment; filename="{fname}"')
+        self.send_header(
+            "Content-Disposition",
+            f'attachment; filename="{ascii_fname}"; filename*=UTF-8\'\'{utf8_fname}'
+        )
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
         for k, v in SECURITY_HEADERS.items():
@@ -189,7 +201,7 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     srv = ThreadingHTTPServer((HOST, PORT), Handler)
     print("=" * 52)
-    print("  SENTINEL AUDIT  診断サーバー起動")
+    print("  サイトドック  診断サーバー起動")
     print(f"  ブラウザで開く:  http://{HOST}:{PORT}/")
     print("  停止: Ctrl + C")
     print("=" * 52)

@@ -1,0 +1,65 @@
+<svg viewBox="0 0 680 520" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>サイトドック マスコット：ドッカー先生</title>
+<desc>クリーム色ポメラニアンのサイボーグ医者犬「ドッカー先生」のアイコン。</desc>
+
+<circle cx="340" cy="252" r="246" fill="#0A1220"/>
+<circle cx="340" cy="252" r="246" fill="none" stroke="#22D3EE" stroke-width="4" opacity="0.55"/>
+<circle cx="340" cy="252" r="232" fill="none" stroke="#22D3EE" stroke-width="1.5" opacity="0.25"/>
+
+<path d="M175,486 C175,408 248,364 340,364 C432,364 505,408 505,486 Z" fill="#FFFFFF"/>
+<path d="M175,486 C175,408 248,364 340,364 C432,364 505,408 505,486 Z" fill="none" stroke="#D8DFE8" stroke-width="2"/>
+<path d="M302,366 L340,412 L378,366 Z" fill="#EAF0F6"/>
+<rect x="238" y="418" width="12" height="34" rx="3" fill="#8B5CF6"/>
+<rect x="227" y="429" width="34" height="12" rx="3" fill="#8B5CF6"/>
+<path d="M305,368 C274,414 286,448 332,462" fill="none" stroke="#22D3EE" stroke-width="9" stroke-linecap="round"/>
+<path d="M375,368 C406,414 394,448 348,462" fill="none" stroke="#22D3EE" stroke-width="9" stroke-linecap="round"/>
+<circle cx="340" cy="468" r="18" fill="#C2CCD8"/>
+<circle cx="340" cy="468" r="10" fill="#8592A3"/>
+
+<path d="M490,250 Q515.8,297.1 469.9,325 Q468.7,378.7 415,379.9 Q387.1,425.8 340,400 Q292.9,425.8 265,379.9 Q211.3,378.7 210.1,325 Q164.2,297.1 190,250 Q164.2,202.9 210.1,175 Q211.3,121.3 265,120.1 Q292.9,74.2 340,100 Q387.1,74.2 415,120.1 Q468.7,121.3 469.9,175 Q515.8,202.9 490,250 Z" fill="#F0D9A8" stroke="#D9B679" stroke-width="2.5"/>
+
+<polygon points="302,104 268,54 322,100" fill="#EDCB92" stroke="#D9B679" stroke-width="2"/>
+<polygon points="306,100 284,70 320,98" fill="#F7E4BE"/>
+<polygon points="378,104 412,54 358,100" fill="#9AA6B6"/>
+<polygon points="374,100 398,70 360,98" fill="#7E8B9C"/>
+<line x1="412" y1="54" x2="424" y2="32" stroke="#8592A3" stroke-width="5" stroke-linecap="round"/>
+<circle cx="426" cy="30" r="6" fill="#22D3EE"/>
+
+<path d="M490,250 Q515.8,297.1 469.9,325 Q468.7,378.7 415,379.9 Q387.1,425.8 340,400 Q292.9,425.8 265,379.9 Q211.3,378.7 210.1,325 Q164.2,297.1 190,250 Q164.2,202.9 210.1,175 Q211.3,121.3 265,120.1 Q292.9,74.2 340,100 Q387.1,74.2 415,120.1 Q468.7,121.3 469.9,175 Q515.8,202.9 490,250 Z" fill="#FBEFD3" opacity="0.55"/>
+
+<polygon points="196,300 156,318 200,336" fill="#EDCB92" stroke="#D9B679" stroke-width="2"/>
+
+<path d="M430,300 Q500,304 492,362 Q466,382 408,362 Q402,330 430,300 Z" fill="#B0BAC8"/>
+<path d="M430,300 Q500,304 492,362 Q466,382 408,362 Q402,330 430,300 Z" fill="none" stroke="#8592A3" stroke-width="2"/>
+<circle cx="450" cy="324" r="4" fill="#7E8B9C"/>
+<circle cx="468" cy="352" r="4" fill="#7E8B9C"/>
+<path d="M416,342 L438,334 L460,346" fill="none" stroke="#22D3EE" stroke-width="2" opacity="0.85"/>
+
+<ellipse cx="340" cy="304" rx="86" ry="60" fill="#FBF6EE" stroke="#E4D2AC" stroke-width="1.5"/>
+<ellipse cx="340" cy="272" rx="23" ry="16" fill="#2B2B33"/>
+<ellipse cx="333" cy="267" rx="6" ry="3.5" fill="#5A5A66"/>
+<path d="M340,288 L340,314" fill="none" stroke="#3A3A42" stroke-width="4" stroke-linecap="round"/>
+<path d="M340,314 Q308,342 288,318" fill="none" stroke="#3A3A42" stroke-width="4" stroke-linecap="round"/>
+<path d="M340,314 Q372,342 392,318" fill="none" stroke="#3A3A42" stroke-width="4" stroke-linecap="round"/>
+<path d="M323,320 Q340,318 357,320 Q355,348 340,348 Q325,348 323,320 Z" fill="#F4A6AC"/>
+<path d="M340,324 L340,346" fill="none" stroke="#DE8890" stroke-width="2"/>
+
+<circle cx="284" cy="234" r="20" fill="#2B2B33" stroke="#5A5A66" stroke-width="1.5"/>
+<circle cx="291" cy="227" r="7" fill="#FFFFFF"/>
+
+<circle cx="400" cy="230" r="31" fill="#10202A"/>
+<circle cx="400" cy="230" r="31" fill="none" stroke="#6E7A8C" stroke-width="3"/>
+<circle cx="400" cy="230" r="24" fill="none" stroke="#22D3EE" stroke-width="2" opacity="0.6"/>
+<circle cx="400" cy="230" r="16" fill="#22D3EE"/>
+<circle cx="400" cy="230" r="7" fill="#06323B"/>
+<circle cx="395" cy="224" r="3.5" fill="#CFFAFF"/>
+<line x1="376" y1="230" x2="424" y2="230" stroke="#0A3A44" stroke-width="1.5" opacity="0.7"/>
+<line x1="400" y1="206" x2="400" y2="254" stroke="#0A3A44" stroke-width="1.5" opacity="0.7"/>
+
+<path d="M214,152 Q340,118 466,152" fill="none" stroke="#C7D0DB" stroke-width="11" stroke-linecap="round"/>
+<circle cx="340" cy="142" r="33" fill="#C7D0DB"/>
+<circle cx="340" cy="142" r="33" fill="none" stroke="#9AA6B6" stroke-width="3"/>
+<circle cx="340" cy="142" r="19" fill="#16202A"/>
+<circle cx="331" cy="135" r="7" fill="#22D3EE"/>
+<circle cx="328" cy="132" r="2.5" fill="#CFFAFF"/>
+</svg>

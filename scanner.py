@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-SENTINEL AUDIT - 実測診断エンジン
+サイトドック - 実測診断エンジン
 外部から観測可能な公開情報のみを用いた非侵入型スキャン。
   1. SSL/TLS 証明書
   2. HTTP セキュリティヘッダー
@@ -200,7 +200,7 @@ def _check_legacy_tls(domain):
 def _check_https_redirect(domain):
     try:
         conn = http.client.HTTPConnection(domain, 80, timeout=SOCK_TIMEOUT)
-        conn.request("HEAD", "/", headers={"User-Agent": "SentinelAudit/1.0"})
+        conn.request("HEAD", "/", headers={"User-Agent": "SiteDoc/1.0"})
         resp = conn.getresponse()
         loc = resp.getheader("Location", "") or ""
         conn.close()
@@ -240,7 +240,7 @@ def scan_headers(domain):
     try:
         ctx = ssl.create_default_context()
         conn = http.client.HTTPSConnection(domain, 443, timeout=SOCK_TIMEOUT, context=ctx)
-        conn.request("GET", "/", headers={"User-Agent": "SentinelAudit/1.0"})
+        conn.request("GET", "/", headers={"User-Agent": "SiteDoc/1.0"})
         resp = conn.getresponse()
         headers = {k.lower(): v for k, v in resp.getheaders()}
         conn.close()
