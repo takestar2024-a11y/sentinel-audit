@@ -235,7 +235,7 @@ const CONTACT_EMAIL = "take.star2024@gmail.com";
 })();
 
 const el=id=>document.getElementById(id);
-const AREA_ORDER=[{key:'ssl',label:'SSL/TLS 証明書スキャン'},{key:'hdr',label:'HTTP セキュリティヘッダー検査'},{key:'dns',label:'DNS メール認証レコード照会'},{key:'phish',label:'類似・偽装ドメイン探索'}];
+const AREA_ORDER=[{key:'ssl',label:'SSL/TLS 証明書スキャン'},{key:'hdr',label:'HTTP セキュリティヘッダー検査'},{key:'auth',label:'認証方式（フィッシング耐性）検査'},{key:'dns',label:'DNS メール認証レコード照会'},{key:'phish',label:'類似・偽装ドメイン探索'}];
 
 function line(cls,txt){const d=document.createElement('div');d.className='l '+(cls||'');d.innerHTML=txt;el('term').appendChild(d);el('term').scrollTop=el('term').scrollHeight;}
 function wait(ms){return new Promise(r=>setTimeout(r,ms));}

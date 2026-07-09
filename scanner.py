@@ -4,8 +4,9 @@
 外部から観測可能な公開情報のみを用いた非侵入型スキャン。
   1. SSL/TLS 証明書
   2. HTTP セキュリティヘッダー
-  3. DNS メール認証（SPF / DKIM / DMARC）
-  4. 類似・偽装ドメイン（実登録の照会）
+  3. 認証方式（フィッシング耐性の兆候：WebAuthn/パスキー）
+  4. DNS メール認証（SPF / DKIM / DMARC）
+  5. 類似・偽装ドメイン（実登録の照会）
 """
 import ssl
 import socket
@@ -255,10 +256,19 @@ def scan_headers(domain):
             sev = "c" if key in CRIT_IF_MISSING else "w"
             findings.append((sev, label, miss_msg))
 
-    # サーバ情報の露出
+    # サーバソフトウェアの鮮度（バージョン開示）
     server = headers.get("server", "")
+    powered_by = headers.get("x-powered-by", "")
+    exposed = []
     if server and re.search(r"\d", server):
-        findings.append(("w", "サーバ情報の露出", f"Serverヘッダーでバージョンが露出：{server}"))
+        exposed.append(f"Server: {server}")
+    if powered_by:
+        exposed.append(f"X-Powered-By: {powered_by}")
+    if exposed:
+        findings.append(("w", "サーバソフトウェアの鮮度",
+                          "バージョン情報が露出しており、既知の脆弱性を狙われるリスクがあります：" + "、".join(exposed)))
+    else:
+        findings.append(("s", "サーバソフトウェアの鮮度", "サーバソフトウェアのバージョン情報は非公開です"))
 
     return _area("hdr", "セキュリティヘッダー", findings)
 
@@ -316,7 +326,43 @@ def scan_dns(domain):
 
 
 # ============================================================
-# 4. 類似・偽装ドメイン
+# 4. 認証方式（フィッシング耐性の兆候）
+# ============================================================
+WEBAUTHN_SIGNALS = (
+    "webauthn", "passkey", "public-key-credential",
+    "navigator.credentials.create", "navigator.credentials.get",
+)
+
+
+def scan_auth(domain):
+    findings = []
+    try:
+        ctx = ssl.create_default_context()
+        conn = http.client.HTTPSConnection(domain, 443, timeout=SOCK_TIMEOUT, context=ctx)
+        conn.request("GET", "/", headers={"User-Agent": "SiteDoc/1.0"})
+        resp = conn.getresponse()
+        headers = {k.lower(): v for k, v in resp.getheaders()}
+        body = resp.read(200000).decode("utf-8", "replace")
+        conn.close()
+    except Exception as e:
+        findings.append(("w", "認証方式の検出", f"ページを取得できず判定できませんでした（{type(e).__name__}）"))
+        return _area("auth", "認証方式（フィッシング耐性）", findings)
+
+    pp = headers.get("permissions-policy", "").lower()
+    signal = "publickey-credentials" in pp or any(s in body.lower() for s in WEBAUTHN_SIGNALS)
+
+    if signal:
+        findings.append(("s", "パスキー/WebAuthn対応の兆候",
+                          "フィッシング耐性のある認証（WebAuthn/パスキー）の実装兆候を検出しました"))
+    else:
+        findings.append(("w", "パスキー/WebAuthn対応の兆候",
+                          "トップページからはパスキー/WebAuthn対応の兆候を検出できませんでした（ログインページの個別確認を推奨、パスワード＋SMS等の旧型認証はフィッシング耐性が低い点に留意）"))
+
+    return _area("auth", "認証方式（フィッシング耐性）", findings)
+
+
+# ============================================================
+# 5. 類似・偽装ドメイン
 # ============================================================
 def _lookalikes(domain):
     """紛らわしい類似ドメイン候補を生成。"""
@@ -406,6 +452,7 @@ def full_scan(domain):
     tasks = {
         "ssl": scan_ssl,
         "hdr": scan_headers,
+        "auth": scan_auth,
         "dns": scan_dns,
         "phish": scan_phishing,
     }
@@ -420,7 +467,7 @@ def full_scan(domain):
                 areas[k] = _area(k, tasks[k].__name__,
                                  [("c", "診断エラー", f"{type(e).__name__}: {e}")])
 
-    order = ["ssl", "hdr", "dns", "phish"]
+    order = ["ssl", "hdr", "auth", "dns", "phish"]
     area_results = [areas[k] for k in order if k in areas]
 
     counts = {"c": 0, "w": 0, "s": 0}
