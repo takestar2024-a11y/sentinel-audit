@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-サイトドック - 実測診断エンジン
+サイバードッグ診断 - 実測診断エンジン
 外部から観測可能な公開情報のみを用いた非侵入型スキャン。
   1. SSL/TLS 証明書
   2. HTTP セキュリティヘッダー
@@ -201,7 +201,7 @@ def _check_legacy_tls(domain):
 def _check_https_redirect(domain):
     try:
         conn = http.client.HTTPConnection(domain, 80, timeout=SOCK_TIMEOUT)
-        conn.request("HEAD", "/", headers={"User-Agent": "SiteDoc/1.0"})
+        conn.request("HEAD", "/", headers={"User-Agent": "CyberDog/1.0"})
         resp = conn.getresponse()
         loc = resp.getheader("Location", "") or ""
         conn.close()
@@ -241,7 +241,7 @@ def scan_headers(domain):
     try:
         ctx = ssl.create_default_context()
         conn = http.client.HTTPSConnection(domain, 443, timeout=SOCK_TIMEOUT, context=ctx)
-        conn.request("GET", "/", headers={"User-Agent": "SiteDoc/1.0"})
+        conn.request("GET", "/", headers={"User-Agent": "CyberDog/1.0"})
         resp = conn.getresponse()
         headers = {k.lower(): v for k, v in resp.getheaders()}
         conn.close()
@@ -339,7 +339,7 @@ def scan_auth(domain):
     try:
         ctx = ssl.create_default_context()
         conn = http.client.HTTPSConnection(domain, 443, timeout=SOCK_TIMEOUT, context=ctx)
-        conn.request("GET", "/", headers={"User-Agent": "SiteDoc/1.0"})
+        conn.request("GET", "/", headers={"User-Agent": "CyberDog/1.0"})
         resp = conn.getresponse()
         headers = {k.lower(): v for k, v in resp.getheaders()}
         body = resp.read(200000).decode("utf-8", "replace")
@@ -448,7 +448,7 @@ def _area(key, name, findings):
 
 
 def full_scan(domain):
-    """4領域を並列実行して統合レポートを返す。"""
+    """5領域を並列実行して統合レポートを返す。"""
     tasks = {
         "ssl": scan_ssl,
         "hdr": scan_headers,

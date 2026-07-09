@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>サイトドック ｜ AI Webセキュリティ診断</title>
+<title>サイバードッグ診断 ｜ AI Webセキュリティ診断</title>
 <style>
 :root{
   --bg:#04070c;
@@ -90,7 +90,7 @@ section{padding:110px 0;position:relative}
 .stat .lab{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.5}
 
 /* ---------- Pillars ---------- */
-.pillars{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px}
 .pillar{border:1px solid var(--line);border-radius:20px;padding:30px 26px;background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.005));transition:.3s}
 .pillar:hover{transform:translateY(-6px);border-color:rgba(34,211,238,.45)}
 .pnum{font-family:var(--mono);font-size:13px;color:var(--accent);letter-spacing:.2em}
@@ -163,14 +163,14 @@ footer .disc{max-width:70ch;margin:14px auto 0;font-size:12px;opacity:.7;line-he
 <div class="bg-glow g1"></div><div class="bg-glow g2"></div><div class="bg-glow g3"></div>
 
 <nav>
-  <div class="brand"><img src="/assets/dokka-icon.svg" alt="" style="width:26px;height:26px;border-radius:50%">サイトドック</div>
+  <div class="brand"><img src="/assets/dokka-icon.svg" alt="" style="width:26px;height:26px;border-radius:50%">サイバードッグ診断</div>
   <a href="/scan" class="nav-cta">無償で今すぐ診断 →</a>
 </nav>
 
 <main>
 <!-- HERO -->
 <header class="hero">
-  <div class="eyebrow reveal">サイトドック — AI WEB SECURITY DIAGNOSTICS</div>
+  <div class="eyebrow reveal">サイバードッグ診断 — AI WEB SECURITY DIAGNOSTICS</div>
   <h1 class="reveal">あなたのサイトは、<br>外から<span class="grad">丸見え</span>かもしれない。</h1>
   <p class="lead reveal">ドメインを送るだけ。SSL証明書・セキュリティヘッダー・メールなりすまし対策・フィッシング偽装ドメインまで、攻撃者と同じ「外からの視点」でAIが徹底診断。スコア付き報告書で納品します。</p>
   <div class="hero-cta reveal">
@@ -217,9 +217,9 @@ footer .disc{max-width:70ch;margin:14px auto 0;font-size:12px;opacity:.7;line-he
 
 <!-- SERVICE -->
 <section id="service" class="wrap">
-  <div class="tag reveal">02 — 診断する4つの領域</div>
+  <div class="tag reveal">02 — 診断する5つの領域</div>
   <h2 class="sec-title reveal">攻撃者が最初に見る場所を、<br>先回りして塞ぐ。</h2>
-  <p class="sec-sub reveal">侵入テストのような大掛かりな調査の前に、まず「外から誰でも確認できてしまう穴」を潰すことが先決。サイトドックはその4領域を一括で診断します。</p>
+  <p class="sec-sub reveal">侵入テストのような大掛かりな調査の前に、まず「外から誰でも確認できてしまう穴」を潰すことが先決。サイバードッグ診断はその5領域を一括で診断します。</p>
   <div class="pillars">
     <div class="pillar reveal">
       <div class="picon"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
@@ -234,14 +234,20 @@ footer .disc{max-width:70ch;margin:14px auto 0;font-size:12px;opacity:.7;line-he
       <p>クリックジャッキングやXSSを防ぐHTTP防御設定の有無を検査。欠落は数秒で攻撃者に伝わる。</p>
     </div>
     <div class="pillar reveal">
-      <div class="picon"><svg viewBox="0 0 24 24"><path d="M3 7l9 6 9-6"/><rect x="3" y="5" width="18" height="14" rx="2"/></svg></div>
+      <div class="picon"><svg viewBox="0 0 24 24"><rect x="4" y="9" width="16" height="11" rx="2"/><path d="M12 13v3"/><circle cx="12" cy="6" r="3"/></svg></div>
       <div class="pnum">SCAN 03</div>
+      <h3>認証方式（フィッシング耐性）</h3>
+      <p>WebAuthn/パスキー対応の兆候を検査。パスワード＋SMSだけの旧型認証はAI時代のフィッシングに弱い。</p>
+    </div>
+    <div class="pillar reveal">
+      <div class="picon"><svg viewBox="0 0 24 24"><path d="M3 7l9 6 9-6"/><rect x="3" y="5" width="18" height="14" rx="2"/></svg></div>
+      <div class="pnum">SCAN 04</div>
       <h3>DNS認証（メール）</h3>
       <p>SPF・DKIM・DMARCの設定状況を確認。未設定なら、あなたの会社名で偽メールが送れてしまう。</p>
     </div>
     <div class="pillar reveal">
       <div class="picon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M8 11h6"/></svg></div>
-      <div class="pnum">SCAN 04</div>
+      <div class="pnum">SCAN 05</div>
       <h3>フィッシング偽装</h3>
       <p>自社になりすました類似ドメインの登録状況を調査。顧客が偽サイトに誘導される前に検知する。</p>
     </div>
@@ -284,7 +290,7 @@ footer .disc{max-width:70ch;margin:14px auto 0;font-size:12px;opacity:.7;line-he
   <p class="sec-sub reveal">サーバーへの侵入やシステム変更は一切なし。外部から観測できる情報のみで診断するため、業務への影響ゼロで実施できます。</p>
   <div class="loop">
     <div class="step reveal"><div class="sn">01</div><h4>ドメイン提出</h4><p>診断したいドメインをメールで送るだけ。準備作業は不要。</p></div>
-    <div class="step reveal"><div class="sn">02</div><h4>AI外部スキャン</h4><p>4領域40項目以上をAIが外部から自動診断。</p></div>
+    <div class="step reveal"><div class="sn">02</div><h4>AI外部スキャン</h4><p>5領域40項目以上をAIが外部から自動診断。</p></div>
     <div class="step reveal"><div class="sn">03</div><h4>スコアリング</h4><p>発見事項を深刻度で分類し、100点満点で採点。</p></div>
     <div class="step reveal"><div class="sn">04</div><h4>報告書納品</h4><p>Word報告書＋Excelデータを最短3営業日で納品。</p></div>
   </div>
@@ -317,7 +323,7 @@ footer .disc{max-width:70ch;margin:14px auto 0;font-size:12px;opacity:.7;line-he
 </main>
 
 <footer class="wrap">
-  <div class="brand" style="justify-content:center"><img src="/assets/dokka-icon.svg" alt="" style="width:22px;height:22px;border-radius:50%">サイトドック</div>
+  <div class="brand" style="justify-content:center"><img src="/assets/dokka-icon.svg" alt="" style="width:22px;height:22px;border-radius:50%">サイバードッグ診断</div>
   <div class="disc">本診断は、外部から観測可能な公開情報のみを用いた非侵入型の診断です。サーバーへの侵入テスト（ペネトレーションテスト）は含まれません。診断結果は観測時点の状態に基づくものであり、すべての脆弱性の不存在を保証するものではありません。</div>
 </footer>
 

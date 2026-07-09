@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>サイトドック ｜ 無償クイック診断</title>
+<title>サイバードッグ診断 ｜ 無償クイック診断</title>
 <style>
 :root{
   --bg:#04070c;--ink:#eef3fa;--muted:#8b95ab;--line:rgba(255,255,255,.10);
@@ -115,7 +115,7 @@ footer{border-top:1px solid var(--line);padding:34px 0;text-align:center;color:v
 <div class="bg-glow g1"></div><div class="bg-glow g2"></div>
 
 <nav>
-  <a class="brand" href="/" style="color:inherit;text-decoration:none"><img src="/assets/dokka-icon.svg" alt="" style="width:26px;height:26px;border-radius:50%">サイトドック</a>
+  <a class="brand" href="/" style="color:inherit;text-decoration:none"><img src="/assets/dokka-icon.svg" alt="" style="width:26px;height:26px;border-radius:50%">サイバードッグ診断</a>
   <div class="nav-note">FREE QUICK SCAN — 実測診断</div>
 </nav>
 
@@ -124,7 +124,7 @@ footer{border-top:1px solid var(--line);padding:34px 0;text-align:center;color:v
 <section id="intro" class="stage">
   <span class="eyebrow">STEP 0 — 無償クイック診断</span>
   <h1>あなたのドメインは、<br><span class="grad">外から</span>どう見えているか。</h1>
-  <p class="lead">診断したいドメインを入力してください。SSL証明書・セキュリティヘッダー・メール認証・フィッシング偽装の4領域を、攻撃者と同じ「外からの視点」で<b>実際にスキャン</b>し、スコアを算出します。</p>
+  <p class="lead">診断したいドメインを入力してください。SSL証明書・セキュリティヘッダー・認証方式・メール認証・フィッシング偽装の5領域を、攻撃者と同じ「外からの視点」で<b>実際にスキャン</b>し、スコアを算出します。</p>
   <div class="scan-form">
     <label for="domain">診断対象ドメイン</label>
     <div class="input-row">
@@ -145,6 +145,7 @@ footer{border-top:1px solid var(--line);padding:34px 0;text-align:center;color:v
   <div class="pills">
     <span class="pill">🔒 SSL/TLS証明書</span>
     <span class="pill">🛡 セキュリティヘッダー</span>
+    <span class="pill">🔑 認証方式（WebAuthn/パスキー）</span>
     <span class="pill">✉ SPF / DKIM / DMARC</span>
     <span class="pill">🎣 フィッシング偽装ドメイン</span>
   </div>
@@ -207,7 +208,7 @@ footer{border-top:1px solid var(--line);padding:34px 0;text-align:center;color:v
 </main>
 
 <footer>
-  <div class="brand" style="justify-content:center"><img src="/assets/dokka-icon.svg" alt="" style="width:22px;height:22px;border-radius:50%">サイトドック</div>
+  <div class="brand" style="justify-content:center"><img src="/assets/dokka-icon.svg" alt="" style="width:22px;height:22px;border-radius:50%">サイバードッグ診断</div>
   <div style="margin-top:10px">非侵入型 Webセキュリティ診断 ｜ 無償クイック診断</div>
 </footer>
 
@@ -253,7 +254,7 @@ async function startScan(domain){
   const fetchPromise=fetch('/api/scan?domain='+encodeURIComponent(domain))
     .then(async r=>{const j=await r.json();if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;});
 
-  line('dim','$ sitedoc-scan --target '+esc(domain)+' --mode quick');
+  line('dim','$ cyberdog-scan --target '+esc(domain)+' --mode quick');
   await wait(400);
   el('phaseLabel').textContent='サーバーへ接続中...';
   line('cy','[*] 診断サーバーへ接続、実測スキャンを開始...');
@@ -357,7 +358,7 @@ function showResult(rep){
   el('summaryText').textContent=st;
   el('dokkaComment').textContent=dokkaComment(rep);
 
-  const body='サイトドック 無償クイック診断の結果を添えて、本診断を希望します。%0D%0A%0D%0A'+
+  const body='サイバードッグ診断 無償クイック診断の結果を添えて、本診断を希望します。%0D%0A%0D%0A'+
     '診断ドメイン：'+rep.domain+'%0D%0A'+
     '診断日時：'+(rep.scannedAt||'')+'%0D%0A'+
     '総合スコア：'+rep.overall+'/100（評価 '+g.g+'）%0D%0A'+

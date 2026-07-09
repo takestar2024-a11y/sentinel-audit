@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-サイトドック - Word報告書ジェネレーター
+サイバードッグ診断 - Word報告書ジェネレーター
 scanner.full_scan() の結果 dict から日本語の .docx 報告書を生成する。
 
 2モード:
@@ -101,7 +101,7 @@ def build_document(report, mode="quick"):
     # ---- タイトル ----
     brand = doc.add_paragraph()
     brand.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = brand.add_run("サイトドック")
+    r = brand.add_run("サイバードッグ診断")
     r.bold = True; r.font.size = Pt(12); r.font.color.rgb = RGBColor(0x22, 0x9E, 0xB8)
 
     title = doc.add_paragraph()
@@ -215,7 +215,7 @@ def build_document(report, mode="quick"):
         doc.add_heading("診断範囲と手法", level=1)
         doc.add_paragraph(
             "本診断は、外部から観測可能な公開情報のみを用いた非侵入型の実測診断です。"
-            "対象サーバーへの侵入・負荷はかけていません。以下の4領域を観測しました：")
+            "対象サーバーへの侵入・負荷はかけていません。以下の5領域を観測しました：")
         for name in ("SSL/TLS証明書（有効期限・発行元・プロトコル・旧TLSの受け入れ・HTTPS転送）",
                      "HTTPセキュリティヘッダー（HSTS / CSP / X-Frame-Options ほか）",
                      "DNSメール認証（SPF / DKIM / DMARC）",
