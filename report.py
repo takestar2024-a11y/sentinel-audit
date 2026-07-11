@@ -229,7 +229,8 @@ def build_document(report, mode="quick"):
         doc.add_paragraph(
             "本書は無償クイック診断のダイジェストです。本診断では40項目以上をフルチェックし、"
             "優先順位付きの改善手順を含む詳細報告書を納品します。ご希望の際は下記までご連絡ください。")
-        doc.add_paragraph("お問い合わせ：take.star2024@gmail.com")
+        doc.add_paragraph("お問い合わせ（公式LINE）：https://lin.ee/EYNlG8m")
+        doc.add_paragraph("メール：take.star2024@gmail.com")
 
     disc = doc.add_paragraph()
     dr = disc.add_run(
