@@ -7,7 +7,8 @@
 | 領域 | 実測している内容 |
 |------|------------------|
 | SSL/TLS証明書 | 証明書の有効期限・発行元、交渉プロトコル、TLS1.0/1.1の受け入れ有無、HTTP→HTTPSリダイレクト |
-| セキュリティヘッダー | HSTS / CSP / X-Frame-Options / X-Content-Type-Options / Referrer-Policy / Permissions-Policy の有無、サーバ情報の露出 |
+| セキュリティヘッダー | HSTS / CSP / X-Frame-Options / X-Content-Type-Options / Referrer-Policy / Permissions-Policy の有無、サーバソフトウェアのバージョン開示 |
+| 認証方式（フィッシング耐性） | Permissions-PolicyとHTML内のシグナルからWebAuthn/パスキー対応の兆候を検出 |
 | DNS認証（メール） | SPF（-all/~all）、DMARC（p=ポリシー）、DKIM（代表的セレクタの照会） |
 | フィッシング偽装 | 視覚的に紛らわしい類似ドメインの実登録・稼働の有無 |
 
