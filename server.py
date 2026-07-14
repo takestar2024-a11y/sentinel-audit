@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-サイバードッグ診断 - 診断サーバー
+SiteDoc AI - 診断サーバー
   GET /              → フロントエンド（public/index.html）
   GET /api/scan?domain=example.co.jp → 実測診断をJSONで返す
 """
@@ -61,7 +61,7 @@ def clean_domain(raw):
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "CyberDog/1.0"
+    server_version = "SiteDocAI/1.0"
 
     def log_message(self, fmt, *args):
         print("[%s] %s" % (self.log_date_time_string(), fmt % args))
@@ -181,8 +181,8 @@ class Handler(BaseHTTPRequestHandler):
         # Content-Dispositionはlatin-1しか通らないため、ASCIIフォールバック名 +
         # RFC 5987のfilename*で日本語のファイル名を渡す
         safe = re.sub(r"[^A-Za-z0-9.\-]", "_", domain)
-        ascii_fname = f"CyberDog_{safe}_quickscan.docx"
-        utf8_fname = quote(f"サイバードッグ診断_{safe}_quickscan.docx")
+        ascii_fname = f"SiteDocAI_{safe}_quickscan.docx"
+        utf8_fname = quote(f"SiteDoc AI_{safe}_quickscan.docx")
         self.send_response(200)
         self.send_header("Content-Type",
                          "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
@@ -201,7 +201,7 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     srv = ThreadingHTTPServer((HOST, PORT), Handler)
     print("=" * 52)
-    print("  サイバードッグ診断  診断サーバー起動")
+    print("  SiteDoc AI  診断サーバー起動")
     print(f"  ブラウザで開く:  http://{HOST}:{PORT}/")
     print("  停止: Ctrl + C")
     print("=" * 52)

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-サイバードッグ診断 - Word報告書ジェネレーター
+SiteDoc AI - Word報告書ジェネレーター
 scanner.full_scan() の結果 dict から日本語の .docx 報告書を生成する。
 
 2モード:
@@ -101,7 +101,7 @@ def build_document(report, mode="quick"):
     # ---- タイトル ----
     brand = doc.add_paragraph()
     brand.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = brand.add_run("サイバードッグ診断")
+    r = brand.add_run("SiteDoc AI")
     r.bold = True; r.font.size = Pt(12); r.font.color.rgb = RGBColor(0x22, 0x9E, 0xB8)
 
     title = doc.add_paragraph()
