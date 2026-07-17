@@ -236,6 +236,26 @@ HEADER_CHECKS = [
 CRIT_IF_MISSING = {"strict-transport-security", "content-security-policy"}
 
 
+GENERATOR_RE = re.compile(r'<meta[^>]+name=["\']generator["\'][^>]+content=["\']([^"\']+)["\']', re.I)
+
+
+def _check_security_txt(domain):
+    """RFC9116準拠のsecurity.txtを探索。見つかれば内容の要旨を返す。"""
+    for path in ("/.well-known/security.txt", "/security.txt"):
+        try:
+            ctx = ssl.create_default_context()
+            conn = http.client.HTTPSConnection(domain, 443, timeout=SOCK_TIMEOUT, context=ctx)
+            conn.request("GET", path, headers={"User-Agent": "SiteDocAI/1.0"})
+            resp = conn.getresponse()
+            body = resp.read(4000).decode("utf-8", "replace")
+            conn.close()
+            if resp.status == 200 and "contact" in body.lower():
+                return path
+        except Exception:
+            continue
+    return None
+
+
 def scan_headers(domain):
     findings = []
     try:
@@ -244,6 +264,7 @@ def scan_headers(domain):
         conn.request("GET", "/", headers={"User-Agent": "SiteDocAI/1.0"})
         resp = conn.getresponse()
         headers = {k.lower(): v for k, v in resp.getheaders()}
+        body = resp.read(200000).decode("utf-8", "replace")
         conn.close()
     except Exception as e:
         findings.append(("c", "ヘッダー取得", f"HTTP応答を取得できませんでした（{type(e).__name__}）"))
@@ -264,11 +285,21 @@ def scan_headers(domain):
         exposed.append(f"Server: {server}")
     if powered_by:
         exposed.append(f"X-Powered-By: {powered_by}")
+    m = GENERATOR_RE.search(body)
+    if m:
+        exposed.append(f"Generator: {m.group(1)}")
     if exposed:
         findings.append(("w", "サーバソフトウェアの鮮度",
                           "バージョン情報が露出しており、既知の脆弱性を狙われるリスクがあります：" + "、".join(exposed)))
     else:
         findings.append(("s", "サーバソフトウェアの鮮度", "サーバソフトウェアのバージョン情報は非公開です"))
+
+    # 脆弱性報告窓口（security.txt）
+    sec_path = _check_security_txt(domain)
+    if sec_path:
+        findings.append(("s", "脆弱性報告窓口（security.txt）", f"{sec_path} が公開されています（脆弱性発見時の報告体制あり）"))
+    else:
+        findings.append(("w", "脆弱性報告窓口（security.txt）", "security.txtが見つかりません（脆弱性の報告先が外部から分かりません）"))
 
     return _area("hdr", "セキュリティヘッダー", findings)
 
