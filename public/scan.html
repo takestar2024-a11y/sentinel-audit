@@ -99,6 +99,16 @@ h1 .grad{background:linear-gradient(120deg,#fff 10%,#22d3ee 55%,#8b5cf6 95%);-we
 .dokka-bubble::before{content:"";position:absolute;left:-8px;top:22px;width:0;height:0;border-top:8px solid transparent;border-bottom:8px solid transparent;border-right:8px solid rgba(34,211,238,.06)}
 .dokka-name{font-family:var(--mono);font-size:11px;letter-spacing:.15em;color:var(--accent);margin-bottom:6px;text-transform:uppercase}
 .dokka-bubble p{font-size:14.5px;line-height:1.7}
+/* なりすまし送金詐欺リスクの注意喚起（該当時のみ表示） */
+.bec-box{border:1px solid rgba(255,176,32,.35);border-left:3px solid var(--warn);border-radius:16px;padding:26px;background:linear-gradient(180deg,rgba(255,176,32,.07),rgba(255,176,32,.02));margin-bottom:40px}
+.bec-box .tag{font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:var(--warn);text-transform:uppercase;margin-bottom:12px}
+.bec-box h3{font-size:19px;font-weight:700;margin-bottom:12px;line-height:1.45}
+.bec-box p{font-size:14.5px;color:var(--muted);margin-bottom:12px}
+.bec-box p.lead-in{color:var(--ink)}
+.bec-box ul{list-style:none;margin:14px 0 18px}
+.bec-box li{font-size:14px;padding:5px 0 5px 24px;position:relative;color:var(--ink)}
+.bec-box li::before{content:"▸";position:absolute;left:4px;color:var(--warn)}
+.bec-box .note{font-size:12.5px;color:var(--muted);opacity:.85;margin-bottom:0}
 .summary-box p{color:var(--muted);font-size:14.5px}
 .cta-box{text-align:center;border:1px solid var(--line);border-radius:24px;padding:50px 34px;background:radial-gradient(circle at 50% 0%,rgba(34,211,238,.14),transparent 60%),linear-gradient(180deg,rgba(255,255,255,.03),transparent)}
 .cta-box .free{font-family:var(--mono);font-size:12px;letter-spacing:.2em;color:var(--safe);margin-bottom:18px;text-transform:uppercase}
@@ -193,6 +203,19 @@ footer{border-top:1px solid var(--line);padding:34px 0;text-align:center;color:v
       <div class="dokka-name">ドッカー先生</div>
       <p id="dokkaComment"></p>
     </div>
+  </div>
+  <!-- なりすまし送金詐欺リスク：技術面の不備が検出された場合のみ表示 -->
+  <div class="bec-box hidden" id="becBox">
+    <div class="tag">⚠ 関連リスク — なりすまし送金詐欺</div>
+    <h3>今回検出された設定の不備は、<br>「偽の送金指示メール」が届く条件が揃っている状態です。</h3>
+    <p class="lead-in" id="becReason"></p>
+    <p>ただし、被害の多くは設定だけが原因ではありません。実際に金銭が動くのは、<b>担当者がチャットやメールの指示だけで送金してしまう</b>という、運用側の隙です。近年は生成AIによって、経営者の声や文体をそのまま模倣した指示も現実に発生しています。</p>
+    <ul>
+      <li>一定金額以上は、登録済みの番号へ<b>こちらから電話して確認</b>する</li>
+      <li>チャット・メールのみで完結する送金指示は<b>受け付けない</b>と決めておく</li>
+      <li>声や文体では本人確認にならないため、<b>事前に決めた合言葉</b>で照合する</li>
+    </ul>
+    <p class="note">技術面（SPF/DMARC等）の修正に加えて、送金ルールの整備と社内教育をセットで行うことを推奨します。ご相談は下記のLINEからお気軽にどうぞ。</p>
   </div>
   <div class="cta-box">
     <div class="free">✓ この結果は実測ダイジェストです</div>
@@ -359,10 +382,39 @@ function showResult(rep){
   el('summaryText').textContent=st;
   el('dokkaComment').textContent=dokkaComment(rep);
 
+  // なりすまし送金詐欺リスクの注意喚起（サーバー側の判定に従う）
+  const becBox=el('becBox');
+  if(rep.becRiskSignal){
+    el('becReason').textContent=becReasonText(rep);
+    becBox.classList.remove('hidden');
+  }else{
+    becBox.classList.add('hidden');
+  }
+
   el('ctaMail').href=LINE_URL;
   el('ctaReport').href='/api/report?domain='+encodeURIComponent(rep.domain);
 
   drawGauge(rep.overall);
+}
+
+/* 何が根拠でリスク判定されたかを、診断結果の実データから具体的に示す */
+function becReasonText(rep){
+  const reasons=[];
+  for(const a of rep.areaResults){
+    if(a.key==='dns'){
+      for(const f of a.findings){
+        if(f.sev==='c'&&f.title.startsWith('SPF'))reasons.push('SPFが未設定のため、第三者が御社ドメインを騙ってメールを送信できます');
+        if(f.title==='DMARC'&&f.sev==='c')reasons.push('DMARCが未設定のため、偽装メールを受信側で拒否できません');
+        else if(f.title==='DMARC'&&f.sev==='w'&&f.desc.indexOf('p=none')>=0)reasons.push('DMARCが p=none（監視のみ）のため、偽装メールが実際には拒否されません');
+      }
+    }else if(a.key==='phish'){
+      for(const f of a.findings){
+        if(f.title==='類似ドメインのメール送信能力')reasons.push('御社に似たドメインが実在し、しかもメール送信可能な状態です');
+      }
+    }
+  }
+  if(!reasons.length)return '';
+  return '検出根拠：'+reasons.join('。')+'。';
 }
 
 function drawGauge(score){

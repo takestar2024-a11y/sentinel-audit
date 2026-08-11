@@ -305,10 +305,24 @@ def scan_headers(domain):
 
 
 # ============================================================
-# 3. DNS メール認証（SPF / DKIM / DMARC）
+# 3. DNS メール認証（SPF / DKIM / DMARC / DNSSEC）
 # ============================================================
-DKIM_SELECTORS = ["default", "google", "selector1", "selector2", "k1", "dkim",
-                  "mail", "s1", "s2", "mandrill", "smtp", "mx"]
+DKIM_SELECTORS = ["default", "google", "selector1", "selector2", "k1", "k2", "dkim",
+                  "mail", "s1", "s2", "mandrill", "smtp", "mx", "mxvault", "amazonses"]
+
+# RFC 7208: SPFのDNSルックアップ機構は合計10回まで（超過するとpermerrorで無効化される）
+_SPF_LOOKUP_RE = re.compile(r"\b(include|a|mx|ptr|exists|redirect)[:=]", re.I)
+
+
+def _dmarc_next_step(policy, has_rua):
+    """現在のDMARCポリシーから、次に公開すべき実レコードを提案する。"""
+    if policy in (None, "none"):
+        return ('v=DMARC1; p=quarantine; pct=25; rua=mailto:dmarc-reports@' + '{domain}',
+                "まず隔離率25%から開始し、正規メールへの影響が無いことをレポートで確認後に引き上げる")
+    if policy == "quarantine":
+        return ('v=DMARC1; p=reject; rua=mailto:dmarc-reports@' + '{domain}',
+                "隔離運用が安定していれば、最終形の reject（拒否）へ引き上げる")
+    return (None, None)  # 既に reject（最終形）
 
 
 def scan_dns(domain):
@@ -318,28 +332,56 @@ def scan_dns(domain):
     txts = _txt(domain)
     spf = next((t for t in txts if t.lower().startswith("v=spf1")), None)
     if not spf:
-        findings.append(("c", "SPF", "SPF未設定（第三者による なりすまし送信が可能）"))
+        findings.append(("c", "SPF", "SPF未設定（第三者による なりすまし送信が可能）。"
+                          f'"v=spf1 include:_spf.google.com -all" 等、利用中のメール基盤に'
+                          "合わせたレコードを公開してください"))
     else:
         if re.search(r"[-~]all", spf):
             if "-all" in spf:
                 findings.append(("s", "SPF", "SPF設定済み（-all：厳格）"))
             else:
-                findings.append(("w", "SPF", "SPF設定済みだが ~all（ソフトフェイル）"))
+                findings.append(("w", "SPF", "SPF設定済みだが ~all（ソフトフェイル）。"
+                                  "運用が安定していれば -all（厳格）への引き上げを推奨"))
         else:
             findings.append(("w", "SPF", "SPFの終端指定(all)が緩い、または未指定"))
+
+        # DNSルックアップ回数（RFC7208: 10回超過でSPF自体が無効化される）
+        lookups = len(_SPF_LOOKUP_RE.findall(spf))
+        if lookups > 10:
+            findings.append(("c", "SPFのDNSルックアップ数",
+                              f"約{lookups}回（上限10回）。超過するとSPFがpermerrorで無効化され、"
+                              "正規メールも含めて認証されなくなります。includeの整理が必要です"))
+        elif lookups >= 8:
+            findings.append(("w", "SPFのDNSルックアップ数",
+                              f"約{lookups}回（上限10回に接近）。今後includeを追加すると"
+                              "上限超過のリスクがあります"))
 
     # --- DMARC ---
     dmarc_txts = _txt("_dmarc." + domain)
     dmarc = next((t for t in dmarc_txts if t.lower().startswith("v=dmarc1")), None)
     if not dmarc:
-        findings.append(("c", "DMARC", "DMARC未設定（偽メールを検知・拒否できません）"))
+        findings.append(("c", "DMARC", "DMARC未設定（偽メールを検知・拒否できません）。"
+                          f'_dmarc.{domain} に "v=DMARC1; p=none; rua=mailto:dmarc-reports@{domain}" '
+                          "を公開し、まず監視から開始してください"))
     else:
         m = re.search(r"p=(\w+)", dmarc)
         pol = m.group(1).lower() if m else "none"
-        if pol in ("reject", "quarantine"):
-            findings.append(("s", "DMARC", f"DMARC設定済み（p={pol}：有効に機能）"))
+        rua_m = re.search(r"rua=", dmarc, re.I)
+        next_record, next_note = _dmarc_next_step(pol, bool(rua_m))
+        next_record = next_record.format(domain=domain) if next_record else None
+
+        if pol == "reject":
+            findings.append(("s", "DMARC", "DMARC設定済み（p=reject：最も強い設定で有効に機能）"))
+        elif pol == "quarantine":
+            findings.append(("s", "DMARC", f"DMARC設定済み（p=quarantine：有効に機能）。"
+                              f"次の一歩として {next_note}: 「{next_record}」"))
         else:
-            findings.append(("w", "DMARC", "DMARCが p=none（監視のみで拒否しない）"))
+            findings.append(("w", "DMARC", f"DMARCが p=none（監視のみで拒否しない）。"
+                              f"次の一歩: 「{next_record}」（{next_note}）"))
+        if not rua_m:
+            findings.append(("w", "DMARC集計レポート",
+                              "rua（集計レポート送付先）が未設定です。可視化なしに"
+                              "ポリシーを引き上げると正規メールを誤って弾くリスクがあります"))
 
     # --- DKIM（代表的なセレクタを探索）---
     found_sel = None
@@ -351,9 +393,29 @@ def scan_dns(domain):
     if found_sel:
         findings.append(("s", "DKIM", f"DKIM署名を検出（セレクタ：{found_sel}）"))
     else:
-        findings.append(("w", "DKIM", "一般的なセレクタではDKIMを検出できませんでした（要個別確認）"))
+        findings.append(("w", "DKIM", "一般的なセレクタではDKIMを検出できませんでした（要個別確認。"
+                          "セレクタは送信側にしか分からないため、未検出=未設定とは限りません）"))
+
+    # --- DNSSEC ---
+    has_dnssec = _has_dnssec(domain)
+    if has_dnssec:
+        findings.append(("s", "DNSSEC", "DNSSEC署名を検出（DNS応答の改ざんを検知可能）"))
+    else:
+        findings.append(("w", "DNSSEC", "DNSSEC未導入（DNS応答の改ざんを受信側で検知できません。"
+                          "正しいURLでも偽サイトへ誘導される「DNS侵害」のリスクが残ります）"))
 
     return _area("dns", "DNS認証（メール）", findings)
+
+
+def _has_dnssec(domain):
+    """DSレコードの有無でDNSSEC導入を判定（親ゾーンへの署名委任の有無）。"""
+    try:
+        ans = _resolver.resolve(domain, "DS")
+        return len(ans) > 0
+    except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer,
+            dns.resolver.NoNameservers, dns.exception.Timeout,
+            dns.resolver.LifetimeTimeout, Exception):
+        return False
 
 
 # ============================================================
@@ -395,67 +457,118 @@ def scan_auth(domain):
 # ============================================================
 # 5. 類似・偽装ドメイン
 # ============================================================
-def _lookalikes(domain):
-    """紛らわしい類似ドメイン候補を生成。"""
+# 同形異字（見間違えやすい置換）
+_HOMOGLYPHS = {
+    "o": ["0"], "0": ["o"], "l": ["1", "i"], "1": ["l", "i"],
+    "i": ["1", "l"], "e": ["3"], "a": ["4"], "s": ["5"],
+    "rn": ["m"], "m": ["rn"], "vv": ["w"], "w": ["vv"],
+}
+# なりすましメールの送信元・偽装ログインページとして付与されやすい語
+_LOOKALIKE_AFFIXES = ["support", "mail", "secure", "login", "account"]
+
+
+def _lookalike_candidates(domain):
+    """紛らわしい類似ドメイン候補を生成（同形異字・欠落・重複・入替・ハイフン・別TLD・付加語）。"""
     parts = domain.split(".")
     if len(parts) < 2:
         return []
     name = parts[0]
     rest = "." + ".".join(parts[1:])
+    n = len(name)
     cands = set()
 
-    # 文字の視覚的置換
-    subs = [("o", "0"), ("0", "o"), ("l", "1"), ("1", "l"),
-            ("i", "1"), ("rn", "m"), ("m", "rn"), ("e", "3")]
-    for a, b in subs:
-        if a in name:
-            cands.add(name.replace(a, b, 1) + rest)
+    # 同形異字（複数パターンに対応）
+    for pat, reps in _HOMOGLYPHS.items():
+        if pat in name:
+            for rep in reps:
+                cands.add(name.replace(pat, rep, 1) + rest)
+
+    # 1文字省略
+    for i in range(n):
+        if n > 3:
+            cands.add(name[:i] + name[i + 1:] + rest)
+
+    # 隣接文字の入れ替え
+    for i in range(n - 1):
+        s = list(name)
+        s[i], s[i + 1] = s[i + 1], s[i]
+        cands.add("".join(s) + rest)
+
+    # 文字重複
+    for i in range(n):
+        cands.add(name[:i + 1] + name[i] + name[i + 1:] + rest)
 
     # ハイフンの有無
     if "-" in name:
         cands.add(name.replace("-", "") + rest)
-    else:
-        # よくある区切り位置にハイフン挿入（先頭寄り）
-        if len(name) > 4:
-            cands.add(name[:len(name)//2] + "-" + name[len(name)//2:] + rest)
-
-    # 文字重複・欠落
-    if len(name) > 3:
-        cands.add(name + name[-1] + rest)          # 末尾重複
-        cands.add(name[:-1] + rest)                # 末尾欠落
+    elif n > 4:
+        cands.add(name[:n // 2] + "-" + name[n // 2:] + rest)
 
     # 別TLDでの登録
     base_tld = parts[-1]
-    for tld in ("com", "net", "org", "info", "co"):
+    for tld in ("com", "net", "org", "info", "co", "jp", "co.jp"):
         if tld != base_tld:
             cands.add(name + "." + tld)
 
+    # なりすまし目的の付加語（-support 等）
+    for aff in _LOOKALIKE_AFFIXES:
+        cands.add(f"{name}-{aff}" + rest)
+
     cands.discard(domain)
-    return list(cands)[:18]  # 探索数を制限
+    return list(cands)[:30]  # 探索数を制限（レイテンシと精度のバランス）
+
+
+def _mx(name):
+    """MXレコードの有無。あれば=メール送受信が可能=なりすまし送信に即使える状態。"""
+    try:
+        ans = _resolver.resolve(name, "MX")
+        return len(ans) > 0
+    except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer,
+            dns.resolver.NoNameservers, dns.exception.Timeout,
+            dns.resolver.LifetimeTimeout, Exception):
+        return False
 
 
 def scan_phishing(domain):
     findings = []
-    cands = _lookalikes(domain)
+    cands = _lookalike_candidates(domain)
     if not cands:
         findings.append(("s", "類似ドメイン", "評価対象の類似ドメインはありません"))
         return _area("phish", "フィッシング偽装", findings)
 
-    registered = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
         results = dict(zip(cands, ex.map(_resolves, cands)))
     registered = [c for c, r in results.items() if r]
 
+    # 登録済みのものだけ、追加でMXの有無を確認する（＝メールを送れる状態か）
+    mx_capable = []
+    if registered:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+            mx_results = dict(zip(registered, ex.map(_mx, registered)))
+        mx_capable = [c for c, r in mx_results.items() if r]
+
     if not registered:
         findings.append(("s", "類似ドメイン登録", "なりすまし可能な類似ドメインは未検出"))
+    elif mx_capable:
+        # MXが1件でもあれば最優先：なりすましメールを即送信できる状態のため
+        sample = "、".join(mx_capable[:3])
+        more = f" ほか{len(mx_capable)-3}件" if len(mx_capable) > 3 else ""
+        findings.append(("c", "類似ドメインのメール送信能力",
+                         f"稼働中かつメール送信可能(MXあり)な類似ドメインを{len(mx_capable)}件検出："
+                         f"{sample}{more}。なりすましメールを即座に送信できる状態です"))
+        others = len(registered) - len(mx_capable)
+        if others > 0:
+            findings.append(("w", "類似ドメイン登録（メール送信能力なし）",
+                             f"上記以外に、稼働中だがMXの無い類似ドメインが{others}件あります"))
     elif len(registered) == 1:
         findings.append(("w", "類似ドメイン登録",
-                         f"稼働中の類似ドメインを1件検出：{registered[0]}"))
+                         f"稼働中の類似ドメインを1件検出（メール送信能力は無し）：{registered[0]}"))
     else:
         sample = "、".join(registered[:3])
         more = f" ほか{len(registered)-3}件" if len(registered) > 3 else ""
-        findings.append(("c", "類似ドメイン登録",
-                         f"稼働中の類似ドメインを{len(registered)}件検出：{sample}{more}"))
+        findings.append(("w", "類似ドメイン登録",
+                         f"稼働中の類似ドメインを{len(registered)}件検出（メール送信能力は無し）："
+                         f"{sample}{more}"))
 
     # 参考：登録の有無だけでは悪性と断定できない旨は報告書側で明記
     findings.append(("s", "調査範囲", f"視覚的に紛らわしい候補{len(cands)}件を照会しました"))
@@ -514,7 +627,46 @@ def full_scan(domain):
         "counts": counts,
         "areaResults": area_results,
         "scannedAt": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "becRiskSignal": _bec_risk_signal(area_results),
     }
+
+
+# ============================================================
+# BECアップセル判定
+# ============================================================
+# なりすまし送金詐欺のリスクが「実際に高い」と言える根拠が揃ったかを判定する。
+# server.py・report.py・フロントエンドが同じ基準を参照するよう、判定はここに一元化する。
+#
+# 判定を厳しめにしている理由:
+#   有名ドメインは類似ドメインをほぼ必ず取得されており、「類似ドメインあり」だけを
+#   条件にすると全診断で発火してノイズになる（実測でgoogle/example/wikipediaの
+#   3件すべてが該当した）。案内が常時出ると価値が薄れ、営業導線として逆効果になる。
+#   そこで「なりすまし送信が現に可能な状態」と言える根拠に限定する。
+#
+# 発火条件（いずれか）:
+#   A. なりすまし送信を受信側で止められない … SPF未設定 / DMARC未設定 / DMARC p=none
+#   B. 攻撃準備が実在する … 類似ドメインがMXを持つ（＝メールを即送信できる）
+_BEC_CRITICAL_TITLES = ("SPF", "DMARC")           # 重大(c)のみ対象。~all等の軽微は除く
+_BEC_MX_TITLE = "類似ドメインのメール送信能力"      # MXありの類似ドメイン検出
+
+
+def _bec_risk_signal(area_results):
+    for area in area_results:
+        if area["key"] == "dns":
+            for f in area["findings"]:
+                # SPF/DMARCの「重大」＝未設定またはp=noneのみを根拠とする
+                if f["sev"] == "c" and any(
+                    f["title"].startswith(t) for t in _BEC_CRITICAL_TITLES
+                ):
+                    return True
+                # p=none は重大ではなく要改善(w)で出るため個別に拾う
+                if f["sev"] == "w" and f["title"] == "DMARC" and "p=none" in f["desc"]:
+                    return True
+        elif area["key"] == "phish":
+            for f in area["findings"]:
+                if f["title"] == _BEC_MX_TITLE:
+                    return True
+    return False
 
 
 if __name__ == "__main__":

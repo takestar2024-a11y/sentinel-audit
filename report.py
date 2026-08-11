@@ -45,9 +45,15 @@ REMEDIATION = {
     "Permissions-Policy": "利用しないブラウザ機能を Permissions-Policy で明示的に無効化する。",
     "サーバ情報の露出": "Server ヘッダーからバージョン番号を除去し、ソフトウェア情報の露出を抑える。",
     "SPF": "自社の正規送信元のみを許可する SPF レコードを設定し、終端を -all（厳格）にする。",
+    "SPFのDNSルックアップ数": "include等のDNSルックアップ機構を整理・統合し、RFC7208の上限10回以内に収める。超過するとSPF自体がpermerrorで無効化される。",
     "DKIM": "メール配信基盤で DKIM 署名を有効化し、公開鍵を DNS に公開する。",
     "DMARC": "DMARC レコードを設定し、監視（p=none）から段階的に p=quarantine / reject へ引き上げる。",
+    "DMARC集計レポート": "rua タグで集計レポートの送付先を設定し、ポリシー引き上げ前に正規メールへの影響を可視化する。",
+    "DNSSEC": "レジストラ／DNSホスティングでDNSSECを有効化し、DNS応答の改ざんを受信側が検知できるようにする。",
     "類似ドメイン登録": "検出された類似ドメインの用途を確認し、必要に応じて防衛的取得・監視・法的対応を検討する。",
+    "類似ドメインのメール送信能力": "MXを持つ類似ドメインは、なりすましメールの送信元として即座に悪用され得る。"
+        "レジストラへの通報・登録者情報の確認・自社ドメインの監視強化を最優先で検討する。合わせて、"
+        "チャット・メールのみで完結する送金指示を受け付けない社内ルールの整備を推奨する。",
 }
 
 
@@ -83,6 +89,26 @@ def _remediation_for(title):
         if key in title:
             return adv
     return "設定内容を確認し、ベストプラクティスに沿って是正する。"
+
+
+def _bec_reasons(report):
+    """なりすまし送金詐欺リスクと判定した根拠を、診断結果の実データから列挙する。
+    判定条件そのものは scanner._bec_risk_signal と対応させること。"""
+    reasons = []
+    for area in report.get("areaResults", []):
+        if area["key"] == "dns":
+            for f in area["findings"]:
+                if f["sev"] == "c" and f["title"].startswith("SPF"):
+                    reasons.append("SPFが未設定のため、第三者が貴社ドメインを騙ってメールを送信できる状態です。")
+                if f["title"] == "DMARC" and f["sev"] == "c":
+                    reasons.append("DMARCが未設定のため、偽装メールを受信側で拒否できません。")
+                elif f["title"] == "DMARC" and f["sev"] == "w" and "p=none" in f["desc"]:
+                    reasons.append("DMARCが p=none（監視のみ）のため、偽装メールが実際には拒否されません。")
+        elif area["key"] == "phish":
+            for f in area["findings"]:
+                if f["title"] == "類似ドメインのメール送信能力":
+                    reasons.append("貴社に似たドメインが実在し、かつメール送信可能（MXあり）な状態です。")
+    return reasons
 
 
 def build_document(report, mode="quick"):
@@ -221,6 +247,34 @@ def build_document(report, mode="quick"):
                      "DNSメール認証（SPF / DKIM / DMARC）",
                      "類似・偽装ドメインの登録・稼働状況"):
             doc.add_paragraph(name, style="List Bullet")
+
+    # ---- なりすまし送金詐欺リスク（該当時のみ）----
+    if report.get("becRiskSignal"):
+        doc.add_heading("関連リスク：なりすまし送金詐欺について", level=1)
+        p = doc.add_paragraph()
+        r0 = p.add_run("今回検出された設定の不備は、「偽の送金指示メール」が届く条件が揃っている状態です。")
+        r0.bold = True
+        reasons = _bec_reasons(report)
+        if reasons:
+            doc.add_paragraph("検出根拠：")
+            for rtext in reasons:
+                doc.add_paragraph(rtext, style="List Bullet")
+        doc.add_paragraph(
+            "ただし、被害の多くは設定だけが原因ではありません。実際に金銭が動くのは、"
+            "担当者がチャットやメールの指示だけで送金してしまうという運用側の隙です。"
+            "近年は生成AIにより、経営者の声や文体をそのまま模倣した指示も現実に発生しており、"
+            "「声が本人に聞こえたこと」は本人確認の根拠になりません。")
+        doc.add_paragraph("推奨する運用ルール：")
+        for item in (
+            "一定金額以上の送金は、登録済みの電話番号へこちらから連絡して確認する（相手が指定した番号は使わない）",
+            "チャット・メールのみで完結する送金指示は、理由を問わず受け付けないと決めておく",
+            "事前に共有した合言葉を照合する（声・文体は偽装され得るため、これが唯一の確認手段）",
+            "高額送金・振込先変更は、依頼者・実行者・承認者を分離した二重承認とする",
+        ):
+            doc.add_paragraph(item, style="List Bullet")
+        doc.add_paragraph(
+            "技術面（SPF/DMARC等）の修正に加え、送金プロセスのルール整備と社内教育を"
+            "セットで実施することを推奨します。")
 
     # ---- CTA / 免責 ----
     doc.add_paragraph()
