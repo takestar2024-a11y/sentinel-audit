@@ -21,19 +21,30 @@
 初回のみ、依存パッケージのインストールが必要です:
 
 ```
-python -m pip install dnspython
+python -m pip install -r requirements.txt
+```
+
+## 納品物の生成（本診断・有償クライアント向け）
+
+無償クイック診断とは別に、CLIから本診断の納品物一式を生成できます（`reports/` に保存）。
+
+```
+python report.py example.com --full     # 本診断報告書（Word・改善アクション付き）
+python excel_report.py example.com      # スコア付き診断データ（Excel・全項目の生データ）
 ```
 
 ## ファイル構成
 
 ```
 sentinel-audit/
-├── server.py        診断サーバー（HTTP + /api/scan）
-├── scanner.py       実測診断エンジン（標準ライブラリ + dnspython）
+├── server.py         診断サーバー（HTTP + /api/scan）
+├── scanner.py        実測診断エンジン（標準ライブラリ + dnspython）
+├── report.py         Word報告書ジェネレーター（クイック版／本診断版）
+├── excel_report.py   Excel診断データジェネレーター（本診断・納品用）
 ├── public/
-│   ├── index.html   ホーム（営業LP）… "/"  で配信
-│   └── scan.html    実測診断ツール（入力→スキャン→結果）… "/scan" で配信
-├── start.bat        起動スクリプト
+│   ├── index.html    ホーム（営業LP）… "/"  で配信
+│   └── scan.html     実測診断ツール（入力→スキャン→結果）… "/scan" で配信
+├── start.bat         起動スクリプト
 └── README.md
 ```
 

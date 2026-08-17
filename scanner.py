@@ -256,6 +256,12 @@ def _check_security_txt(domain):
     return None
 
 
+def _cookie_name(raw):
+    """Set-Cookie の生値からCookie名だけを取り出す。"""
+    first = raw.split(";", 1)[0]
+    return first.split("=", 1)[0].strip() if "=" in first else first.strip()
+
+
 def scan_headers(domain):
     findings = []
     try:
@@ -263,7 +269,10 @@ def scan_headers(domain):
         conn = http.client.HTTPSConnection(domain, 443, timeout=SOCK_TIMEOUT, context=ctx)
         conn.request("GET", "/", headers={"User-Agent": "SiteDocAI/1.0"})
         resp = conn.getresponse()
-        headers = {k.lower(): v for k, v in resp.getheaders()}
+        raw_headers = resp.getheaders()
+        # 辞書化すると同名ヘッダーが上書きされるため、Set-Cookie（複数あり得る）は別途保持する
+        headers = {k.lower(): v for k, v in raw_headers}
+        cookies = [v for k, v in raw_headers if k.lower() == "set-cookie"]
         body = resp.read(200000).decode("utf-8", "replace")
         conn.close()
     except Exception as e:
@@ -294,6 +303,35 @@ def scan_headers(domain):
     else:
         findings.append(("s", "サーバソフトウェアの鮮度", "サーバソフトウェアのバージョン情報は非公開です"))
 
+    # Cookieのセキュリティ属性（トップページで発行された分のみ。ログイン後発行のCookieは対象外）
+    if cookies:
+        missing_secure = [_cookie_name(c) for c in cookies if "secure" not in c.lower()]
+        missing_httponly = [_cookie_name(c) for c in cookies if "httponly" not in c.lower()]
+        missing_samesite = [_cookie_name(c) for c in cookies if "samesite" not in c.lower()]
+
+        if missing_secure:
+            sample = "、".join(missing_secure[:3])
+            more = f" ほか{len(missing_secure)-3}件" if len(missing_secure) > 3 else ""
+            findings.append(("c", "Cookieのセキュリティ属性（Secure）",
+                              f"Secure属性の無いCookieを検出：{sample}{more}。"
+                              "HTTP通信に混在した場合、通信内容を盗聴されるリスクがあります"))
+        if missing_httponly:
+            sample = "、".join(missing_httponly[:3])
+            more = f" ほか{len(missing_httponly)-3}件" if len(missing_httponly) > 3 else ""
+            findings.append(("w", "Cookieのセキュリティ属性（HttpOnly）",
+                              f"HttpOnly属性の無いCookieを検出：{sample}{more}。"
+                              "JavaScript経由で読み取れるため、XSS発生時に盗まれるリスクがあります"))
+        if missing_samesite:
+            sample = "、".join(missing_samesite[:3])
+            more = f" ほか{len(missing_samesite)-3}件" if len(missing_samesite) > 3 else ""
+            findings.append(("w", "Cookieのセキュリティ属性（SameSite）",
+                              f"SameSite属性の無いCookieを検出：{sample}{more}。"
+                              "CSRF（意図しないリクエストの偽装）のリスクが上がります"))
+        if not (missing_secure or missing_httponly or missing_samesite):
+            findings.append(("s", "Cookieのセキュリティ属性",
+                              f"検出した{len(cookies)}件のCookieはすべてSecure/HttpOnly/SameSiteが設定済みです"))
+    # cookies が空の場合は「トップページでは発行なし」であり不備ではないため、findingは追加しない
+
     # 脆弱性報告窓口（security.txt）
     sec_path = _check_security_txt(domain)
     if sec_path:
@@ -307,8 +345,21 @@ def scan_headers(domain):
 # ============================================================
 # 3. DNS メール認証（SPF / DKIM / DMARC / DNSSEC）
 # ============================================================
-DKIM_SELECTORS = ["default", "google", "selector1", "selector2", "k1", "k2", "dkim",
-                  "mail", "s1", "s2", "mandrill", "smtp", "mx", "mxvault", "amazonses"]
+# 主要メール基盤の代表的セレクタ。1件ごとにDNS照会が1回増えるため、
+# 実在頻度の高いもの中心に絞って追加している（無制限に増やすとレイテンシが伸びる）。
+DKIM_SELECTORS = [
+    "default", "google", "selector1", "selector2",       # Google Workspace / Microsoft365
+    "k1", "k2", "k3",                                     # Mailchimp
+    "s1", "s2",                                           # SendGrid
+    "pm",                                                 # Postmark
+    "mg", "mta",                                          # Mailgun
+    "zmail",                                               # Zoho Mail
+    "fm1",                                                 # Fastmail
+    "s2048",                                               # Yahoo/AOL系
+    "protonmail",                                          # ProtonMail
+    "dkim", "mail", "mandrill", "smtp", "mx",              # 汎用・その他
+    "mxvault", "amazonses",
+]
 
 # RFC 7208: SPFのDNSルックアップ機構は合計10回まで（超過するとpermerrorで無効化される）
 _SPF_LOOKUP_RE = re.compile(r"\b(include|a|mx|ptr|exists|redirect)[:=]", re.I)
