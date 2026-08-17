@@ -33,6 +33,26 @@ python report.py example.com --full     # 本診断報告書（Word・改善ア�
 python excel_report.py example.com      # スコア付き診断データ（Excel・全項目の生データ）
 ```
 
+## 月額保守監査（継続クライアント向け）
+
+前回の診断結果を保存しておき、次回実行時に「変化」だけを報告する。契約している
+クライアントごとに、月1回このコマンドを実行する運用を想定している
+（Webサーバー(server.py)はステートレスなため、この機能はCLI専用）。
+
+```
+python monitor.py example.com              # 初回はベースライン作成。2回目以降は差分を表示
+python monitor.py example.com --report     # 差分を月次保守レポート（Word）として reports/ に保存
+```
+
+確認する内容:
+- 前回との差分（新たに検出された問題／改善が確認された項目、スコアの推移）
+- 類似ドメインの新規登録・MXの新規獲得（＝なりすましメールを送れる状態への変化）
+- DNS応答の整合性（Google/Cloudflare/Quad9への同時照会でNSの食い違いを検知。
+  前回からのNS変更も検知する）
+
+監視状態は `monitor_state/`（クライアントごとの`.json`）に保存される。
+このフォルダは `.gitignore` 対象（クライアントの監視データのため、リポジトリには含めない）。
+
 ## ファイル構成
 
 ```
@@ -41,6 +61,7 @@ sentinel-audit/
 ├── scanner.py        実測診断エンジン（標準ライブラリ + dnspython）
 ├── report.py         Word報告書ジェネレーター（クイック版／本診断版）
 ├── excel_report.py   Excel診断データジェネレーター（本診断・納品用）
+├── monitor.py        月額保守監査（差分検知・類似ドメイン監視・DNS整合性・月次レポート）
 ├── public/
 │   ├── index.html    ホーム（営業LP）… "/"  で配信
 │   └── scan.html     実測診断ツール（入力→スキャン→結果）… "/scan" で配信

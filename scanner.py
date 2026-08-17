@@ -711,7 +711,12 @@ def _lookalike_candidates(domain):
         cands.add(f"{name}-{aff}" + rest)
 
     cands.discard(domain)
-    return list(cands)[:45]  # 探索数を制限（レイテンシと精度のバランス。Phase Aの30から拡大）
+    # sorted()で決定的な順序に固定する。list(set)はPythonの文字列ハッシュランダム化
+    # (PYTHONHASHSEED)の影響でプロセスを再起動するたびに反復順序が変わり得るため、
+    # 未ソートのまま[:45]で切り詰めると「どの45件を選ぶか」が実行ごとに変化してしまう。
+    # monitor.py の月次比較（前回と今回で同じ候補集合を照会する必要がある）が
+    # 意味を成さなくなるため、単発スキャンのみだった頃には無かった実害が生じる。
+    return sorted(cands)[:45]  # 探索数を制限（レイテンシと精度のバランス。Phase Aの30から拡大）
 
 
 def _mx(name):
