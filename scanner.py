@@ -26,7 +26,10 @@ import dns.exception
 PTS = {"s": 100, "w": 55, "c": 15}
 
 SOCK_TIMEOUT = 7.0
-DNS_LIFETIME = 4.0
+# 類似ドメイン探索は候補数×A/AAAAの2レコード分、応答の無いドメインへの照会が
+# 直列的に積み重なり得る（最悪ケースで DNS_LIFETIME × 2）。正常な権威サーバーは
+# 通常 数十〜数百ms で応答するため、4.0秒は「応答が無い」場合の待ちとして長すぎた。
+DNS_LIFETIME = 2.0
 
 _resolver = dns.resolver.Resolver()
 _resolver.lifetime = DNS_LIFETIME
@@ -238,6 +241,66 @@ CRIT_IF_MISSING = {"strict-transport-security", "content-security-policy"}
 
 GENERATOR_RE = re.compile(r'<meta[^>]+name=["\']generator["\'][^>]+content=["\']([^"\']+)["\']', re.I)
 
+# --- 既知の重大脆弱性（バージョン開示から照合） ---
+# 意図的に少数・高確度のものだけを掲載する。あいまいな記憶でCVEを断定すると
+# 誤った指摘になりかねないため、事実確認できた著名な事例のみを扱う。
+# バージョンが一致しても「非侵入型診断」の性質上、実際に影響を受ける設定かは
+# 断定しない（例: Apacheの当該CVEはdocument root外へのアクセス制限設定に依存する）。
+_KNOWN_VULN_VERSIONS = {
+    ("apache", "2.4.49"): (
+        "CVE-2021-41773",
+        "パストラバーサル・リモートコード実行（設定次第で影響。document root外への"
+        "アクセス制限が無効な場合に悪用され得る）。直ちに2.4.51以降へ更新してください",
+    ),
+    ("apache", "2.4.50"): (
+        "CVE-2021-42013",
+        "CVE-2021-41773の修正が不十分だったことによる同種の脆弱性（設定次第で影響）。"
+        "直ちに2.4.51以降へ更新してください",
+    ),
+}
+
+# EOL（サポート終了）の目安となるメジャーバージョン。特定のCVEは断定せず、
+# 「サポートが終了しており脆弱性が修正されない」という事実のみを指摘する。
+_EOL_MAJOR_VERSIONS = {
+    "php": ["5", "7.0", "7.1", "7.2", "7.3", "7.4"],
+}
+
+_VERSION_RE = re.compile(
+    r"(apache|nginx|php|microsoft-iis|openssl)[/\s]+(\d+(?:\.\d+){0,2})", re.I
+)
+
+
+def _known_vuln_findings(*texts):
+    """Server/X-Powered-By/Generator等の文字列から、既知の脆弱性・EOLを照合する。"""
+    findings = []
+    seen = set()
+    for text in texts:
+        if not text:
+            continue
+        for m in _VERSION_RE.finditer(text):
+            product = m.group(1).lower()
+            version = m.group(2)
+            key = (product, version)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            if key in _KNOWN_VULN_VERSIONS:
+                cve, detail = _KNOWN_VULN_VERSIONS[key]
+                findings.append(("c", "既知の重大脆弱性",
+                                  f"{product} {version} は既知の脆弱性 {cve} の対象バージョンです。{detail}"))
+                continue
+
+            eol_majors = _EOL_MAJOR_VERSIONS.get(product)
+            if eol_majors and any(
+                version == v or version.startswith(v + ".") for v in eol_majors
+            ):
+                findings.append(("w", "サポート終了(EOL)ソフトウェアの可能性",
+                                  f"{product} {version} はサポート終了（EOL）済みのバージョン系列に"
+                                  "該当する可能性があります。セキュリティパッチが提供されないため、"
+                                  "公式サイトで現在のサポート状況を確認し、更新を検討してください"))
+    return findings
+
 
 def _check_security_txt(domain):
     """RFC9116準拠のsecurity.txtを探索。見つかれば内容の要旨を返す。"""
@@ -300,6 +363,9 @@ def scan_headers(domain):
     if exposed:
         findings.append(("w", "サーバソフトウェアの鮮度",
                           "バージョン情報が露出しており、既知の脆弱性を狙われるリスクがあります：" + "、".join(exposed)))
+        # 露出したバージョン文字列を、既知の重大脆弱性・EOL一覧と照合する
+        findings.extend(_known_vuln_findings(server, powered_by,
+                                              m.group(1) if m else ""))
     else:
         findings.append(("s", "サーバソフトウェアの鮮度", "サーバソフトウェアのバージョン情報は非公開です"))
 
@@ -455,7 +521,55 @@ def scan_dns(domain):
         findings.append(("w", "DNSSEC", "DNSSEC未導入（DNS応答の改ざんを受信側で検知できません。"
                           "正しいURLでも偽サイトへ誘導される「DNS侵害」のリスクが残ります）"))
 
+    # --- MTA-STS（メール受信側の暗号化強制ポリシー）---
+    # SPF/DMARC/DKIMは「送信側」の対策。MTA-STSは「受信側」が配送元に対して
+    # 「このドメイン宛のメールは必ずTLSで送ってほしい」と宣言する仕組みで、送受信
+    # 双方の対策が揃って初めてメール経路全体が守られる。
+    # 実際にSTARTTLSが有効かをポート25で確認する方式は実装していない：本番ホスティング
+    # (Render)がポート25の発信を全プランでブロックしており、正しく設定された相手先でも
+    # 「未対応」という誤った判定になりかねないため（非侵入型診断で誤検知は避けたい）。
+    if _mx(domain):
+        sts = _check_mta_sts(domain)
+        if not sts["published"]:
+            findings.append(("w", "MTA-STS",
+                              "MTA-STSが未公開です。対応していない場合、メール配送時のTLS暗号化が"
+                              "ダウングレード攻撃で無効化される余地が残ります"))
+        elif sts["mode"] == "enforce":
+            findings.append(("s", "MTA-STS", "MTA-STSが有効（mode: enforce）。配送時のTLS暗号化が強制されます"))
+        elif sts["mode"] == "testing":
+            findings.append(("w", "MTA-STS",
+                              "MTA-STSがtestingモードです。問題が無ければenforceへの移行を推奨"))
+        else:
+            findings.append(("w", "MTA-STS",
+                              "MTA-STSレコードは検出しましたが、ポリシー本文(mta-sts.txt)を確認できませんでした"))
+    # MXが無い（メールを受信しないドメイン）場合はMTA-STSの要否自体が無いため判定しない
+
     return _area("dns", "DNS認証（メール）", findings)
+
+
+def _check_mta_sts(domain):
+    """MTA-STSの公開状況を確認する（DNS TXT + HTTPS。ポート25は使用しない）。"""
+    sts_txts = _txt(f"_mta-sts.{domain}")
+    record = next((t for t in sts_txts if t.lower().startswith("v=stsv1")), None)
+    if not record:
+        return {"published": False, "mode": None}
+
+    mode = None
+    try:
+        ctx = ssl.create_default_context()
+        conn = http.client.HTTPSConnection(f"mta-sts.{domain}", 443,
+                                            timeout=SOCK_TIMEOUT, context=ctx)
+        conn.request("GET", "/.well-known/mta-sts.txt", headers={"User-Agent": "SiteDocAI/1.0"})
+        resp = conn.getresponse()
+        body = resp.read(2000).decode("utf-8", "replace")
+        conn.close()
+        if resp.status == 200:
+            m = re.search(r"mode:\s*(\w+)", body, re.I)
+            if m:
+                mode = m.group(1).lower()
+    except Exception:
+        pass
+    return {"published": True, "mode": mode}
 
 
 def _has_dnssec(domain):
@@ -517,9 +631,27 @@ _HOMOGLYPHS = {
 # なりすましメールの送信元・偽装ログインページとして付与されやすい語
 _LOOKALIKE_AFFIXES = ["support", "mail", "secure", "login", "account"]
 
+# QWERTYキーボードでの物理的な隣接キー（fat-finger typo＝入力ミスによる誤登録を模す）。
+# dnstwist等の類似ドメイン探索ツールが採用している手法のひとつ。
+_KEYBOARD_ADJACENT = {
+    "q": "wa", "w": "qesa", "e": "wrsd", "r": "etdf", "t": "ryfg",
+    "y": "tugh", "u": "yihj", "i": "uojk", "o": "ipkl", "p": "ol",
+    "a": "qwsz", "s": "awedxz", "d": "serfxc", "f": "drtgcv", "g": "ftyhvb",
+    "h": "gyujbn", "j": "huikmn", "k": "jiolm", "l": "kop",
+    "z": "asx", "x": "zsdc", "c": "xdfv", "v": "cfgb", "b": "vghn",
+    "n": "bhjm", "m": "njk",
+}
+_VOWELS = "aeiou"
+
 
 def _lookalike_candidates(domain):
-    """紛らわしい類似ドメイン候補を生成（同形異字・欠落・重複・入替・ハイフン・別TLD・付加語）。"""
+    """紛らわしい類似ドメイン候補を生成。
+
+    手法: 同形異字・欠落・重複・隣接文字入替・キーボード隣接誤入力・母音入替・
+    ハイフン・別TLD・付加語。dnstwist等の類似ドメイン探索ツールが採用する
+    代表的な手法をカバーしている（bitsquatting等の低頻度・高コストな手法は
+    候補数とレイテンシのバランスを考慮して対象外としている）。
+    """
     parts = domain.split(".")
     if len(parts) < 2:
         return []
@@ -549,15 +681,28 @@ def _lookalike_candidates(domain):
     for i in range(n):
         cands.add(name[:i + 1] + name[i] + name[i + 1:] + rest)
 
+    # キーボード隣接キーへの誤入力（fat-finger typo）。1文字目は影響が大きいため除外。
+    for i in range(1, n):
+        ch = name[i]
+        for adj in _KEYBOARD_ADJACENT.get(ch, ""):
+            cands.add(name[:i] + adj + name[i + 1:] + rest)
+
+    # 母音の入れ替え（1箇所のみ）
+    for i in range(n):
+        if name[i] in _VOWELS:
+            for v in _VOWELS:
+                if v != name[i]:
+                    cands.add(name[:i] + v + name[i + 1:] + rest)
+
     # ハイフンの有無
     if "-" in name:
         cands.add(name.replace("-", "") + rest)
     elif n > 4:
         cands.add(name[:n // 2] + "-" + name[n // 2:] + rest)
 
-    # 別TLDでの登録
+    # 別TLDでの登録（悪用されやすい安価TLDも含む）
     base_tld = parts[-1]
-    for tld in ("com", "net", "org", "info", "co", "jp", "co.jp"):
+    for tld in ("com", "net", "org", "info", "co", "jp", "co.jp", "io", "xyz"):
         if tld != base_tld:
             cands.add(name + "." + tld)
 
@@ -566,7 +711,7 @@ def _lookalike_candidates(domain):
         cands.add(f"{name}-{aff}" + rest)
 
     cands.discard(domain)
-    return list(cands)[:30]  # 探索数を制限（レイテンシと精度のバランス）
+    return list(cands)[:45]  # 探索数を制限（レイテンシと精度のバランス。Phase Aの30から拡大）
 
 
 def _mx(name):
@@ -587,14 +732,16 @@ def scan_phishing(domain):
         findings.append(("s", "類似ドメイン", "評価対象の類似ドメインはありません"))
         return _area("phish", "フィッシング偽装", findings)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+    # 候補数を45まで拡充したため、並列度も上げてレイテンシを抑える
+    # （応答の無いドメインへの待ちがボトルネックになりやすいため、並列化で吸収する）
+    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as ex:
         results = dict(zip(cands, ex.map(_resolves, cands)))
     registered = [c for c, r in results.items() if r]
 
     # 登録済みのものだけ、追加でMXの有無を確認する（＝メールを送れる状態か）
     mx_capable = []
     if registered:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=16) as ex:
             mx_results = dict(zip(registered, ex.map(_mx, registered)))
         mx_capable = [c for c, r in mx_results.items() if r]
 
